@@ -1,0 +1,503 @@
+/* ==========================================================================
+   Architecture LAB — Laura Bruder
+   Two colours, two typefaces, one moving mark.
+   Layout is proportional: every margin and size derives from --m.
+   ========================================================================== */
+
+:root{
+  --paper:#ffffff;
+  --ink:#000000;
+  --ghost:#7d7d7d;
+
+  --grotesk:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --roman:"Times New Roman",Times,serif;
+
+  /* one unit drives the whole page */
+  --m:clamp(14px,1.5vw,30px);
+  --rail:calc(var(--m) * 3.4);          /* left margin of the text block */
+
+  --lab:clamp(32px,4.4vw,88px);
+  --nav:clamp(9px,.74vw,14px);
+  --serif:clamp(17px,1.85vw,36px);
+  --cursor:62px;
+
+  --ease:cubic-bezier(.16,1,.3,1);
+  --slow:560ms;
+  --mid:320ms;
+  --move:440ms;      /* angles travelling between cross and corners */
+  --line:220ms;      /* a line growing out of / retracting into its centre */
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font:400 16px/1.25 var(--grotesk);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+body.has-fine-pointer,
+body.has-fine-pointer *{cursor:none}
+
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+/* ==========================================================================
+   1 · Cursor
+   No transition on the position — the cross must sit exactly on the pointer.
+   Only the arms animate.
+   ========================================================================== */
+
+#cursor{
+  position:fixed;top:0;left:0;
+  width:var(--cursor,62px);height:var(--cursor,62px);
+  margin:calc(var(--cursor,62px) / -2) 0 0 calc(var(--cursor,62px) / -2);
+  pointer-events:none;
+  z-index:9999;
+  mix-blend-mode:difference;
+  transition:opacity var(--mid);
+}
+#cursor .arm{
+  stroke:#fff;
+  stroke-width:4.2;
+  transform-origin:0 0;
+  transition:transform 140ms var(--ease),opacity 160ms linear;
+}
+#cursor-arms{transition:transform 200ms var(--ease)}
+
+/* over something that opens: the plus parts into its two angles —
+   a preview of the frame it is about to become */
+#cursor.is-apart .arm-n{transform:translate(-3.5px,-3.5px)}
+#cursor.is-apart .arm-w{transform:translate(-3.5px,-3.5px)}
+#cursor.is-apart .arm-s{transform:translate(3.5px,3.5px)}
+#cursor.is-apart .arm-e{transform:translate(3.5px,3.5px)}
+
+/* outside an open project, a click closes it */
+#cursor.is-close #cursor-arms{transform:rotate(45deg)}
+
+#cursor.is-hidden{opacity:0}
+
+/* splash: the cursor is simply a plus — no morphing */
+body[data-view="splash"] #cursor .arm,
+body[data-view="splash"] #cursor-arms{transform:none;opacity:1}
+
+/* ==========================================================================
+   3 · Chrome
+   ========================================================================== */
+
+#chrome{
+  position:fixed;inset:0;
+  z-index:80;
+  pointer-events:none;
+  color:#fff;
+  mix-blend-mode:difference;    /* root level, so it inverts over photography */
+}
+#chrome a,#chrome button,#chrome nav{pointer-events:auto}
+
+#lab{
+  position:fixed;top:0;left:0;
+  font-size:var(--lab);
+  font-weight:700;
+  letter-spacing:-.045em;
+  line-height:.78;
+  transform-origin:0 0;
+  transition:transform var(--slow) var(--ease);
+  will-change:transform;
+}
+.lab-anchor{
+  visibility:hidden;
+  font-size:var(--lab);
+  font-weight:700;
+  letter-spacing:-.045em;
+  line-height:.78;
+}
+
+#nav-main{
+  position:fixed;
+  top:0;right:0;                    /* flush: no margins anywhere */
+  display:flex;gap:1.15em;
+  font-family:var(--roman);
+  font-weight:700;
+  font-size:var(--serif);
+  letter-spacing:.01em;
+  line-height:.8;
+  white-space:nowrap;
+}
+#nav-main a[hidden]{display:none}
+
+#lang{
+  position:fixed;
+  left:0;bottom:0;
+  font-family:var(--roman);
+  font-weight:700;
+  font-size:var(--serif);           /* same size as PROJECTS / INFO */
+  line-height:.8;
+}
+
+
+/* ==========================================================================
+   4 · Views
+   ========================================================================== */
+
+#stage{position:relative;min-height:100%}
+
+.view{
+  display:none;
+  min-height:100vh;
+  background:var(--paper);      /* gives blended children something to invert against */
+}
+.view.is-active{display:block}
+
+@keyframes rise{from{transform:translateY(38px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes roll{from{transform:translateY(0);opacity:1}to{transform:translateY(-38px);opacity:0}}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes fade-out{from{opacity:1}to{opacity:0}}
+
+.view.is-entering{animation:fade-in var(--slow) var(--ease) both}
+.view.is-leaving{
+  display:block;position:absolute;inset:0;z-index:1;
+  animation:roll 340ms var(--ease) both;
+  pointer-events:none;
+}
+
+/* the splash is a full-bleed image: sliding it looks wrong, so it
+   cross-fades in both directions instead */
+#view-splash.is-entering{animation:fade-in 560ms var(--ease) both}
+#view-splash.is-leaving{animation:fade-out 340ms var(--ease) both}
+
+/* ---------- 4.1 splash ---------------------------------------------- */
+
+#view-splash{height:100vh;overflow:hidden;position:relative}
+
+/* splash: only the two plates and the cross are visible */
+body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none}
+
+.frame-outer{position:absolute;inset:0}
+.media{background-position:center;background-size:cover;background-repeat:no-repeat}
+.media video{width:100%;height:100%;object-fit:cover;display:block}
+
+.media-outer{position:absolute;inset:0;filter:grayscale(1) contrast(1.06)}
+
+.media-inner{
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:var(--inner-w,42vw);
+  height:var(--inner-h,58vh);
+  transition:width var(--slow) var(--ease),height var(--slow) var(--ease),opacity 200ms linear;
+}
+.media-inner.is-swapping{opacity:0}
+
+/* ---------- the brand: cross → frame ---------- */
+
+/* the inspiration images clear when the brand opens */
+.frame-outer{transition:opacity 360ms var(--ease) 140ms}
+#view-splash.is-open .frame-outer{transition-delay:0ms}
+#view-splash.is-open .frame-outer{opacity:0;pointer-events:none}
+#view-splash.is-exiting .frame-outer{opacity:0;transition:none}
+
+
+#brand{
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:2;
+  width:min(58ch,62vw);
+  padding:clamp(18px,2.2vw,42px);
+}
+
+.angle{
+  position:absolute;
+  width:calc(var(--cursor) * .35);    /* = the cursor's arm length */
+  height:calc(var(--cursor) * .35);
+  overflow:visible;
+  transition:top var(--move) var(--ease),left var(--move) var(--ease),
+             right var(--move) var(--ease),bottom var(--move) var(--ease),
+             transform var(--move) var(--ease);
+}
+
+/* Lines start at the vertex. dashoffset 0 = fully drawn, 1 = retracted into
+   the vertex. Thickness never changes, only length. */
+.angle line{
+  fill:none;stroke:var(--ink);stroke-width:7.2;   /* = the cursor's weight */
+  stroke-dasharray:1;stroke-dashoffset:0;
+  transition:stroke-dashoffset var(--line) var(--ease);
+}
+.is-shrunk .angle line{stroke-dashoffset:1}
+.angle.tl{top:0;left:0;transform:rotate(0)}
+.angle.br{bottom:0;right:0;transform:rotate(0)}
+
+/* closed: both vertices meet at the centre and read as one plus */
+#brand.is-closed .angle.tl,
+#frame.is-closed .angle.tl{top:50%;left:50%;transform:translate(-100%,-100%) rotate(180deg)}
+#brand.is-closed .angle.br,
+#frame.is-closed .angle.br{bottom:50%;right:50%;transform:translate(100%,100%) rotate(180deg)}
+
+/* the text arrives last, after LAB */
+#brand .statement{opacity:1;transition:opacity 320ms linear 540ms}
+#brand.is-closed .statement{opacity:0;transition-delay:0ms}
+
+/* LAB and the navigation fade up just before the text, without travelling */
+#chrome{transition:opacity 380ms linear 260ms}
+body[data-view="splash"]:not(.brand-open) #chrome{transition-delay:0ms}
+
+.statement{
+  margin:0;
+  color:var(--ink);
+  font-size:clamp(14px,1.45vw,26px);
+  line-height:1.24;
+  text-align:justify;
+  text-justify:inter-word;
+}
+.statement .lab-anchor{float:left;margin-right:.18em}
+
+/* ---------- 4.2 project list + the frame that opens inside it --------- */
+
+#view-projects{padding:calc(var(--m) * 3.6) var(--m) 30vh var(--rail)}
+
+/* ----- the frame ----- */
+
+#frame{
+  position:relative;
+  overflow:visible;
+  width:100%;
+  height:calc(100vh - var(--m) * 5 - var(--frame-title,10vh) - var(--m) * 2);
+  margin:0 0 calc(var(--m) * 1.2);
+  padding:calc(var(--m) * 1.6);
+}
+#frame[hidden]{display:none}
+
+#frame .angle.tl{top:0;left:0}
+#frame .angle.br{bottom:0;right:0}
+
+.frame-body{
+  height:100%;min-height:0;
+  display:grid;
+  grid-template-columns:minmax(260px,34%) 1fr;
+  gap:calc(var(--m) * 1.8);
+  opacity:1;
+  transition:opacity 260ms linear 220ms;
+}
+#frame.is-opening .frame-body{opacity:0;transition-delay:0ms}
+
+.stack{position:relative;min-height:0;height:100%;display:flex;align-items:flex-start}
+.stack img.main,.stack video.main{
+  display:block;
+  max-width:100%;max-height:100%;
+  width:auto;height:auto;
+  object-fit:contain;
+}
+
+.detail-text{max-width:70ch;align-self:start}
+.detail-text p{
+  margin:0;
+  font-size:clamp(12px,1.05vw,18px);
+  line-height:1.42;
+  text-align:justify;
+}
+
+.meta{
+  position:absolute;
+  right:calc(var(--m) * 1.6);bottom:calc(var(--m) * 1.6);
+  margin:0;text-align:right;
+  font-size:clamp(9px,.7vw,13px);
+  line-height:1.65;
+  color:var(--ghost);
+}
+.meta div{display:block}
+.meta dt,.meta dd{display:inline;margin:0}
+.meta dd{margin-left:.3em}
+.meta a{text-decoration:underline;text-underline-offset:2px}
+
+/* images dropped by clicking: they may spill out over the whole page */
+#drops{position:fixed;inset:0;z-index:55;pointer-events:none}
+#drops img,#drops video{
+  position:absolute;
+  width:clamp(220px,26vw,460px);
+  animation:fade-in 320ms var(--ease) both;
+}
+
+/* ----- the open project's title, directly under the frame ----- */
+
+.detail-title{
+  margin:0 0 calc(var(--m) * 2.2);
+  font-size:clamp(18px,2.2vw,42px);
+  font-weight:400;
+  line-height:1.16;
+  letter-spacing:-.018em;
+}
+.detail-title[hidden]{display:none}
+
+/* ----- the list: it stands aside entirely while a project is open ----- */
+
+#view-projects.is-open #project-list{display:none}
+
+/* the frame then has the page: one screen, nothing scrolls */
+#view-projects.is-open{
+  height:100vh;
+  padding-bottom:var(--m);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+#view-projects.is-open #frame{flex:1 1 auto;height:auto;min-height:0;margin-bottom:0}
+#view-projects.is-open .detail-title{flex:none;margin:calc(var(--m) * .9) 0 0}
+html.project-open,body.project-open{overflow:hidden;height:100%}
+
+
+#project-list{
+  list-style:none;
+  margin:0;padding:0;
+  font-size:clamp(17px,2.45vw,46px);
+  line-height:1.4;
+  letter-spacing:-.015em;
+  text-align:justify;
+  text-justify:inter-word;
+  hyphens:none;
+}
+#project-list li{
+  margin:0 0 .52em;
+  text-indent:.55em;
+  transition:transform 560ms var(--ease);
+}
+
+.entry{display:inline}
+.plus{
+  display:inline-block;position:relative;
+  width:calc(var(--cursor) * .7);     /* same span as the cursor's cross */
+  height:calc(var(--cursor) * .7);
+  vertical-align:-.24em;
+  margin-right:.16em;
+}
+.plus svg{
+  position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:calc(var(--cursor) * .8);height:calc(var(--cursor) * .8);
+  overflow:visible;
+}
+.plus line{
+  fill:none;stroke:var(--ink);stroke-width:4.2;
+  stroke-dasharray:1;stroke-dashoffset:0;
+  transition:stroke-dashoffset var(--line) var(--ease);
+}
+.plus.is-shrunk line{stroke-dashoffset:1}
+@keyframes grow{from{stroke-dashoffset:1}}
+.plus.is-growing line{animation:grow var(--line) var(--ease) backwards}
+.entry.no-plus .plus{opacity:0}
+.entry .code{white-space:nowrap}
+
+/* ---------- 4.4 info -------------------------------------------------- */
+
+#view-info{padding:calc(var(--m) * 4.6) var(--m) 30vh var(--rail)}
+
+.statement-info{
+  position:static;
+  color:inherit;
+  mix-blend-mode:normal;
+  width:min(58ch,56vw);
+  margin:0 0 13vh;
+  padding:0;
+  font-size:clamp(16px,1.75vw,32px);
+  line-height:1.32;
+}
+.statement-info .lab-anchor{float:none;margin-right:.12em}
+
+#accordion{max-width:70ch}
+.acc-head{
+  display:flex;align-items:baseline;gap:.45em;
+  padding:.4em 0;
+  font-size:clamp(17px,2vw,36px);
+  letter-spacing:-.012em;
+}
+.acc-head{align-items:center}
+.acc-head .plus{margin-right:.1em;transition:transform var(--mid) var(--ease)}
+.acc-item.is-open .acc-head .plus{transform:rotate(45deg)}
+.acc-body-inner ul{margin-top:.8em}
+.acc-body{overflow:hidden;max-height:0;transition:max-height var(--slow) var(--ease)}
+.acc-item.is-open .acc-body{max-height:900px}
+.acc-body-inner{
+  padding:.3em 0 1.5em 1.1em;
+  font-size:clamp(12px,1vw,17px);
+  line-height:1.5;
+  max-width:66ch;
+  white-space:pre-line;
+}
+.acc-body-inner ul{margin:0;padding:0;list-style:none}
+.acc-body-inner li{margin:0 0 .28em}
+.acc-body-inner a{text-decoration:underline;text-underline-offset:2px}
+
+/* ==========================================================================
+   5 · Hover pop-up
+   ========================================================================== */
+
+#pop{
+  position:fixed;z-index:60;
+  left:58vw;width:36vw;
+  top:50%;
+  height:64vh;
+  transform:translateY(-50%);
+  pointer-events:none;opacity:0;
+}
+#pop img,#pop video{width:100%;height:100%;object-fit:contain;display:block}
+#pop.is-on{opacity:1}
+
+/* ==========================================================================
+   6 · Loader
+   ========================================================================== */
+
+#loader{
+  position:fixed;inset:0;z-index:200;
+  background:var(--paper);
+  display:grid;place-items:center;
+  transition:opacity 420ms var(--ease);
+}
+#loader span{
+  width:20px;height:20px;
+  opacity:.5;
+  background:
+    linear-gradient(var(--ink),var(--ink)) center/2.2px 100% no-repeat,
+    linear-gradient(var(--ink),var(--ink)) center/100% 2.2px no-repeat;
+}
+body.is-ready #loader{opacity:0;pointer-events:none}
+
+/* ==========================================================================
+   7 · Small screens
+   ========================================================================== */
+
+@media (max-width:820px){
+  :root{--lab:clamp(28px,9vw,44px);--rail:var(--m);--nav:11px;--serif:20px}
+  #filters{
+    position:static;
+    writing-mode:horizontal-tb;
+    flex-wrap:wrap;
+    padding:0 var(--m) calc(var(--m) * 1.2);
+  }
+  #filters:not([hidden]){display:flex}
+  #view-projects,#view-info{padding-top:calc(var(--m) * 6)}
+  #project-list{text-align:left;font-size:clamp(17px,5vw,26px)}
+  .frame-body{grid-template-columns:1fr}
+  #frame{height:auto}
+  .meta{position:static;text-align:left;margin-top:1.2em}
+  .statement{left:var(--m);right:var(--m);width:auto}
+  .statement-info{width:auto}
+  .media-inner{width:78vw;height:44vh}
+  .stack img.layer{width:58vw}
+}
+
+@media (hover:none){
+  body,body *{cursor:auto}
+  #cursor{display:none}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+  }
+}
+
