@@ -29,7 +29,7 @@ const PLACEHOLDER = [
    `settings` tab (key / en / de) wins, so the interface vocabulary lives
    in the sheet, not in this file. */
 const DEFAULTS = {
-  site_title:        { en: 'Architecture LAB',   de: 'Architecture LAB' },
+  site_title:        { en: 'LAB - Laura Bruder', de: 'LAB - Laura Bruder' },
   nav_projects:      { en: 'PROJECTS',           de: 'PROJEKTE' },
   nav_inspirations:  { en: 'INSPIRATIONS',       de: 'INSPIRATIONEN' },
   nav_brand:         { en: 'BRAND',              de: 'MARKE' },
@@ -64,10 +64,19 @@ function categories() {
   const seen = [];
   state.data.projects.forEach(p =>
     p.tags.forEach(tag => { if (tag && !seen.includes(tag)) seen.push(tag); }));
-  const out = seen.map(tag => ({
-    key: tag,
-    label: ui('filter_' + tag) === 'filter_' + tag ? titleCase(tag) : ui('filter_' + tag)
-  }));
+  const deLabel = tag => {
+    for (const p of state.data.projects) {
+      const i = p.tags.indexOf(tag);
+      if (i > -1 && p.tagsDe && p.tagsDe[i]) return p.tagsDe[i];
+    }
+    return tag;
+  };
+  const out = seen.map(tag => {
+    const custom = ui('filter_' + tag);
+    const label = custom !== 'filter_' + tag ? custom
+                : titleCase(state.lang === 'de' ? deLabel(tag) : tag);
+    return { key: tag, label };
+  });
   if (state.data.projects.some(p => p.isSelected))
     out.push({ key: 'selected', label: ui('filter_selected') });
   return out;
@@ -75,7 +84,7 @@ function categories() {
 
 const titleCase = s => s.replace(/(^|[\s-])(\w)/g, (m, a, b) => a + b.toUpperCase());
 
-const CACHE_KEY = 'lab-data-v7';
+const CACHE_KEY = 'lab-data-v8';
 
 /* the cross grammar: lines grow / retract (LINE), angles travel (MOVE).
    Must match --line and --move in style.css. */
@@ -93,6 +102,7 @@ const state = {
   filter: null,
   project: null,
   openId: null,
+  zTop: 1,
   scrollBefore: 0,
   data: { projects: [], about: {}, collaborators: [], contact: {}, inspiration: [], settings: {} },
   splashIndex: 0
@@ -201,12 +211,13 @@ async function loadData() {
     collaborators: collaborators.filter(r => r.collaborator),
     contact: mergeRows(contact),
     inspiration: inspiration
-      .filter(r => (r.background || r.image) && (r.show === undefined || yes(r.show)))
       .map(r => ({
-        background: r.background || r.image,
-        inner:      r.inner || r.background || r.image,
-        type:       r.type || 'image'
-      })),
+        background: r.back_image || r.background || r.image || '',
+        inner:      r.front_image || r.inner || '',
+        show:       r.show
+      }))
+      .filter(r => r.background && (r.show === undefined || r.show === '' || yes(r.show)))
+      .map(r => ({ background: r.background, inner: r.inner || r.background })),
     settings: Object.fromEntries(
       settings.filter(r => r.key).map(r => [key(r.key), { en: r.en, de: r.de }]))
   };
@@ -236,11 +247,14 @@ function normaliseProject(r) {
     date: m[1] || '',
     ref: (m[2] || '').toUpperCase(),
     tags: list(r.tag_en || r.tag || r.tag_de).map(x => x.toLowerCase()),
+    tagsDe: list(r.tag_de || r.tag_en || r.tag),
     isSelected: yes(r.selected),
     images,
     hover: r.hover_image || r.cover_image || images[0] || '',
     // a page exists if there is anything to show on it
-    hasPage: !!(images.length || r.content || r.content_en || r.content_de)
+    // `clickable` decides when the column exists; otherwise: anything to show
+    hasPage: (r.clickable === undefined || r.clickable === '' ? true : yes(r.clickable)) &&
+             !!(images.length || r.content || r.content_en || r.content_de)
   };
 }
 
@@ -259,6 +273,7 @@ const cursor = (() => {
   function modeAt(target) {
     if (state.openId) {
       const frame = $('#frame');
+      if (target.closest('#drops img, #drops video')) return '';   // drag, not close
       const inside = frame && !frame.hidden && frame.contains(target);
       return inside ? '' : 'is-close';          // outside an open project closes it
     }
@@ -312,6 +327,14 @@ function labModeForView() {
 }
 
 const refreshLab = () => placeLab(labModeForView());
+
+/* every cross starts exactly where the word LAB ends */
+function measureLab() {
+  document.documentElement.style.setProperty('--lab-w', lab.getBoundingClientRect().width + 'px');
+}
+addEventListener('resize', measureLab);
+document.fonts && document.fonts.ready.then(measureLab);
+measureLab();
 addEventListener('resize', refreshLab);
 addEventListener('scroll', refreshLab, { passive: true });
 // any entry animation that moves an anchor invalidates the measurement
@@ -333,22 +356,64 @@ function paintMedia(el, path) {
   }
 }
 
+/* Cover rotation: hard cuts, back image first, front image 0.5 s later,
+   a new pair every 2 s. Pauses while the cursor is on the front image. */
+const ROT_EVERY = 2000, ROT_FRONT = 500;
+
 function showSplash(i) {
   const pool = state.data.inspiration;
   if (!pool.length) return;
   state.splashIndex = ((i % pool.length) + pool.length) % pool.length;
   const pair = pool[state.splashIndex];
-  const inner = $('#splash-inner');
-
   paintMedia($('#splash-bg'), pair.background);
-
-  inner.classList.add('is-swapping');
-  setTimeout(() => {
-    paintMedia(inner, pair.inner || pair.background);
-    fitInner(inner, pair.inner || pair.background);
-    inner.classList.remove('is-swapping');
-  }, 220);
+  showFront(pair);
 }
+
+function showFront(pair) {
+  const inner = $('#splash-inner');
+  paintMedia(inner, pair.inner || pair.background);
+  fitInner(inner, pair.inner || pair.background);
+}
+
+/** Warm the browser cache so the next cut is instant. */
+function preloadPair(pair) {
+  [pair.background, pair.inner].forEach(p => {
+    if (p && !isVideo(p)) { const im = new Image(); im.src = asset(p); }
+  });
+}
+
+const rotation = { timer: null, front: null, paused: false };
+
+function rotateStep() {
+  const pool = state.data.inspiration;
+  if (pool.length < 2 || rotation.paused) return;
+  state.splashIndex = (state.splashIndex + 1) % pool.length;
+  const pair = pool[state.splashIndex];
+  paintMedia($('#splash-bg'), pair.background);                 // cut 1
+  clearTimeout(rotation.front);
+  rotation.front = setTimeout(() => showFront(pair), ROT_FRONT); // cut 2
+  preloadPair(pool[(state.splashIndex + 1) % pool.length]);
+}
+
+function startRotation() {
+  stopRotation();
+  if (state.data.inspiration.length < 2) return;
+  preloadPair(state.data.inspiration[(state.splashIndex + 1) % state.data.inspiration.length]);
+  rotation.timer = setInterval(rotateStep, ROT_EVERY);
+}
+
+function stopRotation() {
+  clearInterval(rotation.timer); clearTimeout(rotation.front);
+  rotation.timer = rotation.front = null;
+}
+
+// the brand layer sits on top of the plates, so test the pointer by position
+addEventListener('pointermove', e => {
+  if (state.view !== 'splash' || brandOpen) { rotation.paused = false; return; }
+  const r = $('#splash-inner').getBoundingClientRect();
+  rotation.paused = e.clientX >= r.left && e.clientX <= r.right &&
+                    e.clientY >= r.top && e.clientY <= r.bottom;
+}, { passive: true });
 
 /** Inner frame keeps its centre, takes the format of whatever it holds. */
 function fitInner(el, path) {
@@ -362,7 +427,13 @@ function fitInner(el, path) {
     el.style.width = 'var(--inner-w)';
     el.style.height = 'var(--inner-h)';
   };
-  if (isVideo(src)) return apply(16, 9);
+  if (isVideo(src)) {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => apply(v.videoWidth || 16, v.videoHeight || 9);
+    v.src = src;
+    return;
+  }
   const probe = new Image();
   probe.onload = () => apply(probe.naturalWidth, probe.naturalHeight);
   probe.src = src;
@@ -376,16 +447,14 @@ let brandOpen = false;
 
 function setBrand(open) {
   brandOpen = open;
+  if (open) stopRotation();
+  else if (state.view === 'splash') startRotation();
   $('#view-splash').classList.toggle('is-open', open);
   brand.classList.toggle('is-closed', !open);
   if (open) brand.classList.remove('is-shrunk');
   document.body.classList.toggle('brand-open', open);
 
-  // LAB is only ever faded on the splash, never flown
-  lab.style.transition = 'none';
-  refreshLab();
-  void lab.offsetWidth;
-  lab.style.transition = '';
+  refreshLab();                     // LAB flies to its new place
 }
 
 /* First arrival: images → brand → projects. Afterwards the brand has its own
@@ -397,6 +466,11 @@ let seenBrand = false;
 /** Arriving on the splash: the cross grows out of its centre, and if the
     brand is wanted, it then splits into the frame's angles. */
 async function arriveSplash(openBrand) {
+  const n = state.data.inspiration.length;
+  if (n > 1) {
+    let i; do { i = Math.floor(Math.random() * n); } while (i === state.splashIndex);
+    showSplash(i);
+  }
   setBrand(false);
   brand.classList.add('is-closed', 'is-shrunk');
   void brand.offsetWidth;
@@ -447,7 +521,7 @@ function renderList() {
       a.dataset.clickable = '';
     }
     a.innerHTML = PLUS_SVG +
-      `<span class="code">${p.date} ${p.ref}</span>, ` +
+      `<span class="code">${p.date} ${p.ref}</span> ` +
       `${escapeHTML(t(p, 'description'))}`;
 
     a.addEventListener('pointerenter', () => popOn(p.hover));
@@ -609,7 +683,7 @@ function closeProject() {
 function renderFrame(p) {
   state.project = p;
 
-  $('#detail-title').textContent = `${p.date} ${p.ref}, ${t(p, 'description')}`;
+  $('#detail-title').innerHTML = `<b>${p.date} ${p.ref}</b> ${escapeHTML(t(p, 'description'))}`;
   $('#detail-content').textContent = t(p, 'content');
 
   const collab = p.collaboration
@@ -642,22 +716,47 @@ document.addEventListener('click', e => {
   const frame = $('#frame');
   const inside = frame.contains(e.target);
 
+  if (e.target.closest('#drops img, #drops video')) return;   // handled by drag
   if (!inside) { closeProjectAnimated(); return; }
 
   const p = state.project;
-  if (!p || p.images.length < 2) return;
+  if (!p) return;
 
   const drops = $('#drops');
-  let n = Number(drops.dataset.next || 1);
-  if (n >= p.images.length) n = 1;
+  const n = Number(drops.dataset.next || 1);
+  if (n >= p.images.length) return;           // every image shown once: stop
 
   const img = mediaEl(p.images[n]);
   img.style.left = e.clientX + 'px';
   img.style.top = e.clientY + 'px';
   img.style.transform = 'translate(-50%,-38%)';
+  img.style.zIndex = ++state.zTop;
   drops.appendChild(img);
   drops.dataset.next = n + 1;
 });
+
+/* Pressing a dropped image brings it forward; moving while pressed drags it. */
+(() => {
+  let el = null, dx = 0, dy = 0;
+  document.addEventListener('pointerdown', e => {
+    const t = e.target.closest('#drops img, #drops video');
+    if (!t) return;
+    e.preventDefault();
+    el = t;
+    el.style.zIndex = ++state.zTop;
+    dx = e.clientX - parseFloat(el.style.left);
+    dy = e.clientY - parseFloat(el.style.top);
+    el.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!el) return;
+    el.style.left = (e.clientX - dx) + 'px';
+    el.style.top = (e.clientY - dy) + 'px';
+  });
+  const end = () => { el = null; };
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
+})();
 
 /* ── info ──────────────────────────────────────────────────────────────── */
 
@@ -678,11 +777,16 @@ function infoPair(base, dup = '') {
 
 /** Plain text in, with emails and URLs made clickable. */
 function linkify(text) {
-  return escapeHTML(text)
+  text = String(text).split('\n').map(line => {
+    const m = line.match(/^(.*?)\s*(https?:\/\/\S+)\s*$/);
+    if (!m || !m[1].trim()) return escapeHTML(line);
+    return `<a href="${m[2]}" target="_blank" rel="noopener" data-clickable>${escapeHTML(m[1].trim())}</a>`;
+  }).join('\n');
+  return text
     .replace(/([\w.+-]+@[\w-]+\.[\w.-]+)/g,
       '<a href="mailto:$1" data-clickable>$1</a>')
-    .replace(/(https?:\/\/[^\s<]+)/g,
-      '<a href="$1" target="_blank" rel="noopener" data-clickable>$1</a>');
+    .replace(/(^|[\s>])(https?:\/\/[^\s<"]+)(?![^<]*<\/a>)/g,
+      '$1<a href="$2" target="_blank" rel="noopener" data-clickable>$2</a>');
 }
 
 function renderInfo() {
@@ -705,19 +809,28 @@ function renderInfo() {
     { k: 'write',   ...write }
   ].filter(s => s.title);
 
-  $('#accordion').innerHTML = sections.map(s => `
+  $('#accordion').innerHTML = sections.map(s => {
+    const mail = s.k === 'write' && (s.body.match(/[\w.+-]+@[\w-]+\.[\w.-]+/) || [])[0];
+    if (mail) return `
+    <div class="acc-item" data-acc="write">
+      <a class="acc-head" href="mailto:${mail}" data-clickable>
+        ${PLUS_SVG}<span>${escapeHTML(s.title)}</span>
+      </a>
+    </div>`;
+    return `
     <div class="acc-item" data-acc="${s.k}">
       <div class="acc-head" role="button" tabindex="0" data-clickable
            ${s.portrait ? `data-portrait="${s.portrait}"` : ''}>
         ${PLUS_SVG}<span>${escapeHTML(s.title)}</span>
       </div>
       <div class="acc-body"><div class="acc-body-inner">${linkify(s.body)}${s.extra || ''}</div></div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 $('#accordion').addEventListener('click', e => {
   const head = e.target.closest('.acc-head');
-  if (head) head.parentElement.classList.toggle('is-open');
+  if (head && head.tagName !== 'A') head.parentElement.classList.toggle('is-open');
 });
 $('#accordion').addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.acc-head')) {
@@ -794,6 +907,7 @@ function parseHash() {
 function render() {
   popOff();                         // a hover never survives a navigation
   const route = parseHash();
+  if (route.view !== 'splash') stopRotation();
   if (!(route.view === 'projects' && route.open)) closeProject();
   const previous = state.view;
   state.view = route.view;
@@ -837,10 +951,7 @@ function render() {
   }
 
   syncChrome();
-  lab.style.transition = 'none';          // it fades with the view, never flies
-  refreshLab();
-  void lab.offsetWidth;
-  lab.style.transition = '';
+  requestAnimationFrame(refreshLab);      // LAB always flies to its next place
   setTimeout(refreshLab, 680);   // again once the entry animation has settled
 }
 

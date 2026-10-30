@@ -16,10 +16,11 @@
   --m:clamp(14px,1.5vw,30px);
   --rail:calc(var(--m) * 3.4);          /* left margin of the text block */
 
-  --lab:clamp(32px,4.4vw,88px);
+  --lab:clamp(40px,5.8vw,124px);
+  --text:clamp(17px,2.45vw,46px);   /* list, brand and info all share it */
   --nav:clamp(9px,.74vw,14px);
   --serif:clamp(17px,1.85vw,36px);
-  --cursor:62px;
+  --cursor:111px;     /* cursor, list and info crosses, angles: all derive from this */
 
   --ease:cubic-bezier(.16,1,.3,1);
   --slow:560ms;
@@ -64,7 +65,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0}
 }
 #cursor .arm{
   stroke:#fff;
-  stroke-width:4.2;
+  stroke-width:6.45;                /* = 10px at 62px */
   transform-origin:0 0;
   transition:transform 140ms var(--ease),opacity 160ms linear;
 }
@@ -72,10 +73,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0}
 
 /* over something that opens: the plus parts into its two angles —
    a preview of the frame it is about to become */
-#cursor.is-apart .arm-n{transform:translate(-3.5px,-3.5px)}
-#cursor.is-apart .arm-w{transform:translate(-3.5px,-3.5px)}
-#cursor.is-apart .arm-s{transform:translate(3.5px,3.5px)}
-#cursor.is-apart .arm-e{transform:translate(3.5px,3.5px)}
+#cursor.is-apart .arm-n{transform:translate(9px,9px) scaleY(.8)}
+#cursor.is-apart .arm-w{transform:translate(9px,9px) scaleX(.8)}
+#cursor.is-apart .arm-s{transform:translate(-9px,-9px) scaleY(.8)}
+#cursor.is-apart .arm-e{transform:translate(-9px,-9px) scaleX(.8)}
 
 /* outside an open project, a click closes it */
 #cursor.is-close #cursor-arms{transform:rotate(45deg)}
@@ -129,6 +130,20 @@ body[data-view="splash"] #cursor-arms{transform:none;opacity:1}
   white-space:nowrap;
 }
 #nav-main a[hidden]{display:none}
+
+#filters{
+  position:fixed;
+  left:calc(var(--m) * .9);top:15vh;
+  writing-mode:vertical-rl;
+  display:flex;align-items:center;gap:.7em;
+  font-family:var(--roman);
+  font-size:clamp(11px,.95vw,18px);
+  white-space:nowrap;
+}
+#filters[hidden]{display:none}
+#filters .filter{line-height:1}
+#filters .rule{opacity:.6}
+#filters .filter[aria-pressed="true"]{text-decoration:underline;text-underline-offset:3px}
 
 #lang{
   position:fixed;
@@ -189,9 +204,8 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none}
   transform:translate(-50%,-50%);
   width:var(--inner-w,42vw);
   height:var(--inner-h,58vh);
-  transition:width var(--slow) var(--ease),height var(--slow) var(--ease),opacity 200ms linear;
+  transition:width 400ms var(--ease),height 400ms var(--ease);   /* images cut, the frame resizes */
 }
-.media-inner.is-swapping{opacity:0}
 
 /* ---------- the brand: cross → frame ---------- */
 
@@ -207,8 +221,8 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none}
   top:50%;left:50%;
   transform:translate(-50%,-50%);
   z-index:2;
-  width:min(58ch,62vw);
-  padding:clamp(18px,2.2vw,42px);
+  width:52vw;
+  padding:clamp(48px,6vw,120px) clamp(28px,3.4vw,64px);
 }
 
 .angle{
@@ -224,11 +238,15 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none}
 /* Lines start at the vertex. dashoffset 0 = fully drawn, 1 = retracted into
    the vertex. Thickness never changes, only length. */
 .angle line{
-  fill:none;stroke:var(--ink);stroke-width:7.2;   /* = the cursor's weight */
+  fill:none;stroke:var(--ink);stroke-width:11.06;  /* = 10px, the cursor's weight */
+  stroke-linecap:square;
   stroke-dasharray:1;stroke-dashoffset:0;
-  transition:stroke-dashoffset var(--line) var(--ease);
+  transition:stroke-dashoffset var(--line) var(--ease),opacity 0s;
 }
-.is-shrunk .angle line{stroke-dashoffset:1}
+.is-shrunk .angle line{
+  stroke-dashoffset:1;opacity:0;
+  transition:stroke-dashoffset var(--line) var(--ease),opacity 70ms linear calc(var(--line) - 70ms);
+}
 .angle.tl{top:0;left:0;transform:rotate(0)}
 .angle.br{bottom:0;right:0;transform:rotate(0)}
 
@@ -242,15 +260,15 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none}
 #brand .statement{opacity:1;transition:opacity 320ms linear 540ms}
 #brand.is-closed .statement{opacity:0;transition-delay:0ms}
 
-/* LAB and the navigation fade up just before the text, without travelling */
+/* the navigation fades up while LAB flies into place */
 #chrome{transition:opacity 380ms linear 260ms}
 body[data-view="splash"]:not(.brand-open) #chrome{transition-delay:0ms}
 
 .statement{
   margin:0;
   color:var(--ink);
-  font-size:clamp(14px,1.45vw,26px);
-  line-height:1.24;
+  font-size:var(--text);
+  line-height:1.3;
   text-align:justify;
   text-justify:inter-word;
 }
@@ -258,7 +276,7 @@ body[data-view="splash"]:not(.brand-open) #chrome{transition-delay:0ms}
 
 /* ---------- 4.2 project list + the frame that opens inside it --------- */
 
-#view-projects{padding:calc(var(--m) * 3.6) var(--m) 30vh var(--rail)}
+#view-projects{padding:calc(var(--lab) * .78 + var(--m) * 1.4) var(--m) 30vh var(--rail)}
 
 /* ----- the frame ----- */
 
@@ -293,11 +311,11 @@ body[data-view="splash"]:not(.brand-open) #chrome{transition-delay:0ms}
   object-fit:contain;
 }
 
-.detail-text{max-width:70ch;align-self:start}
+.detail-text{max-width:none;align-self:start}
 .detail-text p{
   margin:0;
-  font-size:clamp(12px,1.05vw,18px);
-  line-height:1.42;
+  font-size:clamp(15px,1.55vw,28px);
+  line-height:1.35;
   text-align:justify;
 }
 
@@ -320,6 +338,9 @@ body[data-view="splash"]:not(.brand-open) #chrome{transition-delay:0ms}
   position:absolute;
   width:clamp(220px,26vw,460px);
   animation:fade-in 320ms var(--ease) both;
+  pointer-events:auto;              /* click brings forward, drag moves */
+  touch-action:none;
+  user-select:none;-webkit-user-drag:none;
 }
 
 /* ----- the open project's title, directly under the frame ----- */
@@ -352,7 +373,7 @@ html.project-open,body.project-open{overflow:hidden;height:100%}
 #project-list{
   list-style:none;
   margin:0;padding:0;
-  font-size:clamp(17px,2.45vw,46px);
+  font-size:var(--text);
   line-height:1.4;
   letter-spacing:-.015em;
   text-align:justify;
@@ -361,7 +382,9 @@ html.project-open,body.project-open{overflow:hidden;height:100%}
 }
 #project-list li{
   margin:0 0 .52em;
-  text-indent:.55em;
+  --hang:calc(var(--cursor) * .7 + .32em);          /* cross + its gap */
+  padding-left:calc(var(--lab-w,0px) - var(--rail) + var(--hang));
+  text-indent:calc(-1 * var(--hang));
   transition:transform 560ms var(--ease);
 }
 
@@ -369,9 +392,9 @@ html.project-open,body.project-open{overflow:hidden;height:100%}
 .plus{
   display:inline-block;position:relative;
   width:calc(var(--cursor) * .7);     /* same span as the cursor's cross */
-  height:calc(var(--cursor) * .7);
-  vertical-align:-.24em;
-  margin-right:.16em;
+  height:.75em;
+  vertical-align:-.04em;
+  margin-right:.32em;
 }
 .plus svg{
   position:absolute;left:50%;top:50%;
@@ -380,7 +403,7 @@ html.project-open,body.project-open{overflow:hidden;height:100%}
   overflow:visible;
 }
 .plus line{
-  fill:none;stroke:var(--ink);stroke-width:4.2;
+  fill:none;stroke:var(--ink);stroke-width:6.45;   /* = 10px */
   stroke-dasharray:1;stroke-dashoffset:0;
   transition:stroke-dashoffset var(--line) var(--ease);
 }
@@ -388,47 +411,53 @@ html.project-open,body.project-open{overflow:hidden;height:100%}
 @keyframes grow{from{stroke-dashoffset:1}}
 .plus.is-growing line{animation:grow var(--line) var(--ease) backwards}
 .entry.no-plus .plus{opacity:0}
-.entry .code{white-space:nowrap}
+.entry .code{white-space:nowrap;font-weight:700}
 
 /* ---------- 4.4 info -------------------------------------------------- */
 
-#view-info{padding:calc(var(--m) * 4.6) var(--m) 30vh var(--rail)}
+#view-info{padding:calc(var(--lab) * .78 + var(--m) * 1.4) var(--m) 30vh var(--rail)}
 
 .statement-info{
   position:static;
   color:inherit;
   mix-blend-mode:normal;
-  width:min(58ch,56vw);
-  margin:0 0 13vh;
+  width:auto;
+  margin:0 0 .9em;
   padding:0;
-  font-size:clamp(16px,1.75vw,32px);
-  line-height:1.32;
+  font-size:var(--text);
+  line-height:1.3;
+  text-align:justify;
 }
+#about{white-space:pre-line}
 .statement-info .lab-anchor{float:none;margin-right:.12em}
 
-#accordion{max-width:70ch}
+#accordion{max-width:none;font-size:var(--text)}
 .acc-head{
   display:flex;align-items:baseline;gap:.45em;
-  padding:.4em 0;
-  font-size:clamp(17px,2vw,36px);
-  letter-spacing:-.012em;
+  padding:.15em 0;
+  font-size:var(--text);
+  letter-spacing:-.015em;
 }
 .acc-head{align-items:center}
-.acc-head .plus{margin-right:.1em;transition:transform var(--mid) var(--ease)}
+.acc-head{margin-left:calc(var(--lab-w,0px) - var(--rail));gap:0;line-height:1.4}
+.acc-item{margin:0 0 .52em}
+.acc-head > span:last-child{font-weight:700}
+.acc-head .plus{margin-right:.32em;transition:transform var(--mid) var(--ease)}
 .acc-item.is-open .acc-head .plus{transform:rotate(45deg)}
 .acc-body-inner ul{margin-top:.8em}
 .acc-body{overflow:hidden;max-height:0;transition:max-height var(--slow) var(--ease)}
-.acc-item.is-open .acc-body{max-height:900px}
+.acc-item.is-open .acc-body{max-height:4000px}
 .acc-body-inner{
-  padding:.3em 0 1.5em 1.1em;
-  font-size:clamp(12px,1vw,17px);
-  line-height:1.5;
-  max-width:66ch;
+  padding:.1em 0 .9em calc(var(--lab-w,0px) - var(--rail) + var(--cursor) * .7 + .32em);
+  font-size:var(--text);
+  line-height:1.3;
+  max-width:none;
+  text-align:justify;
   white-space:pre-line;
 }
 .acc-body-inner ul{margin:0;padding:0;list-style:none}
 .acc-body-inner li{margin:0 0 .28em}
-.acc-body-inner a{text-decoration:underline;text-underline-offset:2px}
+.acc-body-inner a{text-decoration:none}
 
 /* ==========================================================================
    5 · Hover pop-up

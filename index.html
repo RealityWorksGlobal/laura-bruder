@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Architecture LAB</title>
+<title>LAB - Laura Bruder</title>
 <meta name="description" content="LAB is an architecture practice that (re)imagines and crafts buildings, interiors and spatial experiences.">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23fff'/><rect x='14' y='4' width='4' height='24'/><rect x='4' y='14' width='24' height='4'/></svg>">
@@ -37,6 +37,9 @@
     <a href="#/brand" data-clickable data-nav="brand" hidden>BRAND</a>
   </nav>
 
+  <!-- category rail: tags from the sheet + Selected -->
+  <nav id="filters" aria-label="Categories" hidden></nav>
+
   <button id="lang" type="button" data-clickable>DE</button>
 </header>
 
@@ -55,8 +58,8 @@
     <!-- The two angles sit stacked at the centre as a cross. Opening the
          brand sends each to its corner, where they become the frame. -->
     <div id="brand" class="is-closed is-shrunk">
-      <svg class="angle tl" viewBox="0 0 24 24" aria-hidden="true"><line x1="0" y1="-3.6" x2="0" y2="24" pathLength="1"/><line x1="-3.6" y1="0" x2="24" y2="0" pathLength="1"/></svg>
-      <svg class="angle br" viewBox="0 0 24 24" aria-hidden="true"><line x1="24" y1="27.6" x2="24" y2="0" pathLength="1"/><line x1="27.6" y1="24" x2="0" y2="24" pathLength="1"/></svg>
+      <svg class="angle tl" viewBox="0 0 24 24" aria-hidden="true"><line x1="0" y1="0" x2="0" y2="18.47" pathLength="1"/><line x1="0" y1="0" x2="18.47" y2="0" pathLength="1"/></svg>
+      <svg class="angle br" viewBox="0 0 24 24" aria-hidden="true"><line x1="24" y1="24" x2="24" y2="5.53" pathLength="1"/><line x1="24" y1="24" x2="5.53" y2="24" pathLength="1"/></svg>
       <p class="statement">
         <span class="lab-anchor" data-anchor="splash" aria-hidden="true">LAB</span>
         <span id="brand-text"></span>
@@ -69,8 +72,8 @@
 
     <!-- the frame: its two angles fly out of the clicked project's plus -->
     <div id="frame" class="is-closed is-shrunk" hidden>
-      <svg class="angle tl" viewBox="0 0 24 24" aria-hidden="true"><line x1="0" y1="-3.6" x2="0" y2="24" pathLength="1"/><line x1="-3.6" y1="0" x2="24" y2="0" pathLength="1"/></svg>
-      <svg class="angle br" viewBox="0 0 24 24" aria-hidden="true"><line x1="24" y1="27.6" x2="24" y2="0" pathLength="1"/><line x1="27.6" y1="24" x2="0" y2="24" pathLength="1"/></svg>
+      <svg class="angle tl" viewBox="0 0 24 24" aria-hidden="true"><line x1="0" y1="0" x2="0" y2="18.47" pathLength="1"/><line x1="0" y1="0" x2="18.47" y2="0" pathLength="1"/></svg>
+      <svg class="angle br" viewBox="0 0 24 24" aria-hidden="true"><line x1="24" y1="24" x2="24" y2="5.53" pathLength="1"/><line x1="24" y1="24" x2="5.53" y2="24" pathLength="1"/></svg>
       <div class="frame-body">
         <div class="stack" id="stack"></div>
         <div class="detail-text"><p id="detail-content"></p></div>
