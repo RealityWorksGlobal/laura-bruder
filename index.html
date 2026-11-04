@@ -8,7 +8,7 @@
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23fff'/><rect x='14' y='4' width='4' height='24'/><rect x='4' y='14' width='24' height='4'/></svg>">
 
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261104q">
 </head>
 
 <body data-view="splash" data-lang="en">
@@ -21,6 +21,9 @@
     <line class="arm arm-s" x1="0" y1="0" x2="0"   y2="14"/>
     <line class="arm arm-w" x1="0" y1="0" x2="-14" y2="0"/>
     <line class="arm arm-e" x1="0" y1="0" x2="14"  y2="0"/>
+    <!-- fill the outer corner where two arms meet, so hover corners are sharp -->
+    <rect class="arm knot knot-nw"/>
+    <rect class="arm knot knot-se"/>
   </g>
 </svg>
 
@@ -32,6 +35,7 @@
   <nav id="nav-main" aria-label="Main">
     <a href="#/projects" data-clickable data-nav="projects">PROJECTS</a>
     <a id="nav-info" href="#/info" data-clickable data-nav="info">INFO</a>
+    <button id="lang" type="button" data-clickable>DE</button>
     <!-- not in the new layout; kept so the routes keep working -->
     <a href="#/" data-clickable data-nav="splash" hidden>INSPIRATIONS</a>
     <a href="#/brand" data-clickable data-nav="brand" hidden>BRAND</a>
@@ -40,7 +44,6 @@
   <!-- category rail: tags from the sheet + Selected -->
   <nav id="filters" aria-label="Categories" hidden></nav>
 
-  <button id="lang" type="button" data-clickable>DE</button>
 </header>
 
 <!-- ───────────── stage ───────────── -->
@@ -70,18 +73,23 @@
   <!-- 2 · project list, with the frame opening inline -->
   <section class="view" id="view-projects" aria-label="Projects">
 
-    <!-- the frame: its two angles fly out of the clicked project's plus -->
-    <div id="frame" class="is-closed is-shrunk" hidden>
-      <svg class="angle tl" viewBox="0 0 24 24" aria-hidden="true"><line x1="0" y1="0" x2="0" y2="18.47" pathLength="1"/><line x1="0" y1="0" x2="18.47" y2="0" pathLength="1"/></svg>
-      <svg class="angle br" viewBox="0 0 24 24" aria-hidden="true"><line x1="24" y1="24" x2="24" y2="5.53" pathLength="1"/><line x1="24" y1="24" x2="5.53" y2="24" pathLength="1"/></svg>
-      <div class="frame-body">
-        <div class="stack" id="stack"></div>
-        <div class="detail-text"><p id="detail-content"></p></div>
-        <dl class="meta" id="detail-meta"></dl>
+    <!-- the open project: a layer above the list, so the list never moves -->
+    <div id="project-layer" hidden>
+      <!-- the white window: grows from / closes to a point, under the corners -->
+      <div id="project-window"></div>
+      <div id="frame" class="is-closed is-shrunk" hidden>
+        <svg class="angle tl" viewBox="0 0 24 24" aria-hidden="true"><line x1="0" y1="0" x2="0" y2="18.47" pathLength="1"/><line x1="0" y1="0" x2="18.47" y2="0" pathLength="1"/></svg>
+        <svg class="angle br" viewBox="0 0 24 24" aria-hidden="true"><line x1="24" y1="24" x2="24" y2="5.53" pathLength="1"/><line x1="24" y1="24" x2="5.53" y2="24" pathLength="1"/></svg>
+        <div class="frame-body">
+          <div class="stack" id="stack"></div>
+          <div class="detail-text"><p id="detail-content"></p></div>
+          <dl class="meta" id="detail-meta"></dl>
+        </div>
       </div>
-    </div>
 
-    <h2 class="detail-title" id="detail-title" hidden></h2>
+      <h2 class="detail-title" id="detail-title" hidden></h2>
+
+    </div>
 
     <ol id="project-list"></ol>
   </section>
@@ -89,7 +97,6 @@
   <!-- 4 · info ------------------------------------------------------ -->
   <section class="view" id="view-info" aria-label="Info">
     <p class="statement statement-info">
-      <span class="lab-anchor" data-anchor="info" aria-hidden="true">LAB</span>
       <span id="about"></span>
     </p>
     <div id="accordion"></div>
@@ -98,11 +105,12 @@
 </main>
 
 <div id="drops" aria-hidden="true"></div>
+<div id="travel" aria-hidden="true"></div>
 <div id="pop" aria-hidden="true"></div>
 
 <div id="loader"><span></span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="script.js"></script>
+<script src="script.js?v=20261104q"></script>
 </body>
 </html>

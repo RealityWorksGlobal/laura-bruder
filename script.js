@@ -39,6 +39,8 @@ const DEFAULTS = {
   meta_collaboration:{ en: 'collaboration with', de: 'in Zusammenarbeit mit' },
   meta_place:        { en: 'place',              de: 'Ort' },
   meta_client:       { en: 'client',             de: 'Auftraggeber' },
+  meta_working_for:  { en: 'as architect at',    de: 'als Architektin bei' },
+  meta_credits:      { en: 'image credits',      de: 'Bildnachweis' },
   acc_bio:           { en: 'LAURA BRUDER',       de: 'LAURA BRUDER' },
   acc_scope:         { en: 'SCOPE',              de: 'LEISTUNGEN' },
   acc_collaborators: { en: 'COLLABORATORS',      de: 'KOLLABORATIONEN' },
@@ -88,7 +90,24 @@ const CACHE_KEY = 'lab-data-v8';
 
 /* the cross grammar: lines grow / retract (LINE), angles travel (MOVE).
    Must match --line and --move in style.css. */
-const T_LINE = 220, T_MOVE = 440;
+/* Timings and sizes come from the parameters at the top of style.css, read
+   at the moment they are used — so editing them live takes effect at once. */
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function cssTime(name, fallback) {           // "2s" → 2000, "220ms" → 220
+  const v = cssVar(name), n = parseFloat(v);
+  if (isNaN(n)) return fallback;
+  return /ms$/.test(v) ? n : /s$/.test(v) ? n * 1000 : n;
+}
+function cssShare(name, fallback) {          // "44vw" → 0.44
+  const n = parseFloat(cssVar(name));
+  return isNaN(n) ? fallback : n / 100;
+}
+const T = {
+  get line() { return cssTime('--line', 220); },
+  get move() { return cssTime('--move', 440); }
+};
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 /** Restart a CSS animation class on an element. */
@@ -126,13 +145,32 @@ const asset = p => {
 
 const isVideo = p => /\.(mp4|webm|mov)$/i.test(p);
 
+/* Videos are made once per file and reused: no new download or decoding
+   each time the same video comes back (covers, hovers). */
+const videoCache = new Map();
+function videoEl(src) {
+  let v = videoCache.get(src);
+  if (!v || v.isConnected) {                 // in use elsewhere → a fresh one
+    v = document.createElement('video');
+    Object.assign(v, { autoplay: true, muted: true, loop: true, playsInline: true, preload: 'auto' });
+    v.src = src;
+    if (!videoCache.has(src)) videoCache.set(src, v);
+  }
+  v.className = '';
+  v.play?.().catch(() => {});
+  return v;
+}
+
 /** An <img> or a muted looping <video>, depending on the file. */
 function mediaEl(path, cls) {
   const src = asset(path);
-  const el = document.createElement(isVideo(src) ? 'video' : 'img');
-  if (isVideo(src)) Object.assign(el, { autoplay: true, muted: true, loop: true, playsInline: true });
-  else el.loading = 'lazy';
-  el.src = src;
+  let el;
+  if (isVideo(src)) el = videoEl(src);
+  else {
+    el = document.createElement('img');
+    el.loading = 'lazy'; el.decoding = 'async';
+    el.src = src;
+  }
   if (cls) el.className = cls;
   return el;
 }
@@ -235,9 +273,20 @@ const looksLikeMedia = v =>
 function normaliseProject(r) {
   const m = String(r.id).match(/^(\d{3,4})\s*([A-Za-z]+)/) || [];
 
-  // `images` is the right column, but the lists currently live in content_de
-  let images = list(r.images);
-  ['content_de', 'content_en', 'content'].forEach(k => {
+  /* Images come from the `content` column (or `images`). Texts only from
+     content_en / content_de. A filename without a valid extension is skipped
+     and reported in the console, instead of breaking the whole project. */
+  const MEDIA = /\.(jpe?g|png|webp|gif|mp4|webm|mov)$/i;
+  let images = [];
+  ['images', 'content'].forEach(k => {
+    list(r[k]).forEach(f => {
+      if (MEDIA.test(f)) images.push(f);
+      else console.warn(`[LAB] ${r.id}: "${f}" in column ${k} is not an image or video — skipped`);
+    });
+    r[k] = '';
+  });
+  // older sheets kept the image list in content_de / content_en
+  ['content_de', 'content_en'].forEach(k => {
     if (looksLikeMedia(r[k])) { images = images.concat(list(r[k])); r[k] = ''; }
   });
   images = [...new Set(images)];
@@ -271,6 +320,7 @@ const cursor = (() => {
 
   /* plus = open or add · apart = about to become a frame · × = close */
   function modeAt(target) {
+    if (state.busy) return '';                  // while animating: a plain plus, no flicker
     if (state.openId) {
       const frame = $('#frame');
       if (target.closest('#drops img, #drops video')) return '';   // drag, not close
@@ -322,7 +372,6 @@ function placeLab(mode) {
 
 function labModeForView() {
   if (state.view === 'splash') return 'splash';
-  if (state.view === 'info' && scrollY < 60) return 'info';
   return 'corner';
 }
 
@@ -333,6 +382,8 @@ function measureLab() {
   document.documentElement.style.setProperty('--lab-w', lab.getBoundingClientRect().width + 'px');
 }
 addEventListener('resize', measureLab);
+// LAB resized live (a parameter edited in the browser) → crosses follow at once
+if ('ResizeObserver' in window) new ResizeObserver(measureLab).observe(lab);
 document.fonts && document.fonts.ready.then(measureLab);
 measureLab();
 addEventListener('resize', refreshLab);
@@ -348,9 +399,7 @@ function paintMedia(el, path) {
   if (!path) return;
   const src = asset(path);
   if (isVideo(src)) {
-    const v = document.createElement('video');
-    Object.assign(v, { src, autoplay: true, muted: true, loop: true, playsInline: true });
-    el.appendChild(v);
+    el.appendChild(videoEl(src));          // reused, not re-downloaded
   } else {
     el.style.backgroundImage = `url("${src}")`;
   }
@@ -358,7 +407,7 @@ function paintMedia(el, path) {
 
 /* Cover rotation: hard cuts, back image first, front image 0.5 s later,
    a new pair every 2 s. Pauses while the cursor is on the front image. */
-const ROT_EVERY = 2000, ROT_FRONT = 500;
+
 
 function showSplash(i) {
   const pool = state.data.inspiration;
@@ -378,7 +427,9 @@ function showFront(pair) {
 /** Warm the browser cache so the next cut is instant. */
 function preloadPair(pair) {
   [pair.background, pair.inner].forEach(p => {
-    if (p && !isVideo(p)) { const im = new Image(); im.src = asset(p); }
+    if (!p) return;
+    if (isVideo(p)) videoEl(asset(p));     // starts loading, kept for its turn
+    else { const im = new Image(); im.src = asset(p); }
   });
 }
 
@@ -391,7 +442,7 @@ function rotateStep() {
   const pair = pool[state.splashIndex];
   paintMedia($('#splash-bg'), pair.background);                 // cut 1
   clearTimeout(rotation.front);
-  rotation.front = setTimeout(() => showFront(pair), ROT_FRONT); // cut 2
+  rotation.front = setTimeout(() => showFront(pair), cssTime('--cover-front-delay', 500)); // cut 2
   preloadPair(pool[(state.splashIndex + 1) % pool.length]);
 }
 
@@ -399,11 +450,12 @@ function startRotation() {
   stopRotation();
   if (state.data.inspiration.length < 2) return;
   preloadPair(state.data.inspiration[(state.splashIndex + 1) % state.data.inspiration.length]);
-  rotation.timer = setInterval(rotateStep, ROT_EVERY);
+  const tick = () => { rotateStep(); rotation.timer = setTimeout(tick, cssTime('--cover-every', 2000)); };
+  rotation.timer = setTimeout(tick, cssTime('--cover-every', 2000));
 }
 
 function stopRotation() {
-  clearInterval(rotation.timer); clearTimeout(rotation.front);
+  clearTimeout(rotation.timer); clearTimeout(rotation.front);
   rotation.timer = rotation.front = null;
 }
 
@@ -419,8 +471,8 @@ addEventListener('pointermove', e => {
 function fitInner(el, path) {
   const src = asset(path);
   const apply = (w, h) => {
-    const maxW = innerWidth * 0.44;
-    const maxH = innerHeight * 0.70;
+    const maxW = innerWidth * cssShare('--cover-front-max-w', 0.44);
+    const maxH = innerHeight * cssShare('--cover-front-max-h', 0.70);
     const s = Math.min(maxW / w, maxH / h);
     el.style.setProperty('--inner-w', Math.round(w * s) + 'px');
     el.style.setProperty('--inner-h', Math.round(h * s) + 'px');
@@ -428,10 +480,9 @@ function fitInner(el, path) {
     el.style.height = 'var(--inner-h)';
   };
   if (isVideo(src)) {
-    const v = document.createElement('video');
-    v.preload = 'metadata';
-    v.onloadedmetadata = () => apply(v.videoWidth || 16, v.videoHeight || 9);
-    v.src = src;
+    const v = el.querySelector('video') || videoEl(src);
+    if (v.videoWidth) apply(v.videoWidth, v.videoHeight);
+    else v.addEventListener('loadedmetadata', () => apply(v.videoWidth || 16, v.videoHeight || 9), { once: true });
     return;
   }
   const probe = new Image();
@@ -466,6 +517,20 @@ let seenBrand = false;
 /** Arriving on the splash: the cross grows out of its centre, and if the
     brand is wanted, it then splits into the frame's angles. */
 async function arriveSplash(openBrand) {
+  const view = $('#view-splash');
+  if (openBrand) {
+    // straight to the brand: the images never show, not even for a frame
+    stopRotation();
+    view.classList.add('is-open', 'no-fade');
+    brand.classList.add('is-closed', 'is-shrunk');
+    void brand.offsetWidth;
+    brand.classList.remove('is-shrunk');          // the cross grows …
+    await wait(T.line);
+    if (state.view === 'splash') setBrand(true);  // … and opens
+    view.classList.remove('no-fade');
+    return;
+  }
+  view.classList.remove('no-fade');
   const n = state.data.inspiration.length;
   if (n > 1) {
     let i; do { i = Math.floor(Math.random() * n); } while (i === state.splashIndex);
@@ -475,9 +540,6 @@ async function arriveSplash(openBrand) {
   brand.classList.add('is-closed', 'is-shrunk');
   void brand.offsetWidth;
   brand.classList.remove('is-shrunk');
-  if (!openBrand) return;
-  await wait(T_LINE);
-  if (state.view === 'splash') setBrand(true);
 }
 
 const splashStep = () => {
@@ -525,6 +587,11 @@ function renderList() {
       `${escapeHTML(t(p, 'description'))}`;
 
     a.addEventListener('pointerenter', () => popOn(p.hover));
+    a.addEventListener('click', () => { state.clickedPlus = a.querySelector('.plus'); });
+    a.addEventListener('pointerenter', () => {
+      const f = p.images[0];
+      if (f && !isVideo(f)) { const im = new Image(); im.decoding = 'async'; im.src = asset(f); }
+    }, { once: true });
     a.addEventListener('pointerleave', popOff);
 
     li.appendChild(a);
@@ -573,9 +640,9 @@ async function handoff() {
   state.busy = true;
   $('#view-splash').classList.add('is-exiting');
   brand.classList.add('is-closed');          // angles → one cross at the centre
-  await wait(T_MOVE);
+  await wait(T.move);
   brand.classList.add('is-shrunk');          // cross → a point
-  await wait(T_LINE);
+  await wait(T.line);
   state.busy = false;
   go('#/projects');
 }
@@ -612,94 +679,283 @@ function popOff() {
 
 /* ── project detail ────────────────────────────────────────────────────── */
 
-/** Open a project. The clicked cross retracts into its centre; the frame's
-    cross grows at the frame centre, then splits into angles for the corners. */
+/* ── open / close: one cross the whole way ─────────────────────────────
+   Open:  the list dims; the clicked cross travels over it to the centre of
+          the frame. There it opens: the corners spread to the frame while a
+          white window grows with them to the whole page, revealing the
+          project. Fully open, the page is only the project.
+   Close: the exact reverse — window and corners shrink to the centre over
+          the dimmed list (dropped images go with them), the cross travels
+          back to its line, the list returns to full black. */
+
+const centreOf = el => {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+};
+const listPlus = id => $(`#project-list li[data-id="${CSS.escape(id)}"] .plus`);
+/* The window starts and ends as the square around the cross, so the cross is
+   always inside it — never clipped away. */
+function crossClip(c) {
+  const a = $('#frame .angle');
+  const h = (a ? a.getBoundingClientRect().width : 40) + 4;   // half the cross, + a hair
+  return `inset(${c.y - h}px ${innerWidth - c.x - h}px ${innerHeight - c.y - h}px ${c.x - h}px)`;
+}
+/* Dropped images close fully, to a point. */
+/** The white window: a full-page sheet scaled from / to point c. */
+function windowTo(c, open, animate) {
+  const w = $('#project-window');
+  w.style.transformOrigin = `${c.x}px ${c.y}px`;
+  w.style.transition = animate ? '' : 'none';
+  w.style.transform = open ? 'scale(1)' : 'scale(0)';
+  if (!animate) w.getBoundingClientRect();
+}
+const pointClip = c => `inset(${c.y}px ${innerWidth - c.x}px ${innerHeight - c.y}px ${c.x}px)`;
+
+/** One cross, moved from a to b on the travel layer. */
+async function travelCross(a, b) {
+  const t = $('#travel');
+  t.querySelector('svg')?.remove();
+  t.insertAdjacentHTML('beforeend', '<svg viewBox="-16 -16 32 32">' +
+    '<line x1="0" y1="-14" x2="0" y2="14"/><line x1="-14" y1="0" x2="14" y2="0"/></svg>');
+  const svg = t.querySelector('svg');
+  svg.style.transition = 'none';
+  svg.style.transform = `translate(${a.x}px,${a.y}px)`;
+  svg.getBoundingClientRect();       // commit the start position before moving
+  svg.style.transition = '';
+  svg.style.transform = `translate(${b.x}px,${b.y}px)`;
+  await wait(T.move);
+}
+
+/** A copy of the clicked line, laid exactly over it on the travel layer. */
+function lineCopy(li) {
+  const r = li.getBoundingClientRect();
+  const ol = document.createElement('ol');
+  ol.className = 'travel-line';
+  Object.assign(ol.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px' });
+  const copy = li.cloneNode(true);
+  copy.style.transform = '';
+  ol.appendChild(copy);
+  $('#travel').appendChild(ol);
+  return ol;
+}
+/** Vertical distance from the line in the list to the title under the frame. */
+const titleDrop = li =>
+  $('#detail-title .line').getBoundingClientRect().top - li.getBoundingClientRect().top;
+
+function moveLine(el, dy, animate) {
+  el.style.transition = animate ? '' : 'none';
+  el.style.transform = `translateY(${dy}px)`;
+  if (!animate) el.getBoundingClientRect();
+}
+
+/** Make room where the title lands: the lines above the landing spot move up
+    just enough to clear it (first using the gap the clicked line left; the
+    lines above the gap follow only if more room is needed), and the line below
+    the spot moves down if it touches it. The title then sits in the list with
+    the normal spacing. `back` returns every line to its place. */
+function shiftLines(li, back) {
+  const go = (el, y) => {
+    el.style.transition = `transform ${cssVar('--move')} ${cssVar('--ease-travel')}`;
+    el.style.transform = y ? `translateY(${y}px)` : '';
+  };
+  if (back) { (state.shifted || []).forEach(el => go(el, 0)); return; }
+  const onScreen = el => { const r = el.getBoundingClientRect(); return r.bottom > -50 && r.top < innerHeight + 50; };
+
+  const items = [...li.parentElement.children];
+  const k = items.indexOf(li);
+  const rect = el => el.getBoundingClientRect();
+  const gapPx = parseFloat(getComputedStyle(li).marginBottom) || 0;
+  const h = rect(li).height + gapPx;                    // room left by the clicked line
+  const t = rect($('#detail-title .line'));            // where the title lands
+  const top = t.top, bottom = t.bottom;
+
+  const below = items.slice(k + 1);
+  const above = below.filter(el => rect(el).top < bottom);       // between gap and spot
+  const after = below.slice(above.length);                       // under the spot
+
+  const moved = [];
+  if (above.length) {
+    const last = rect(above[above.length - 1]);
+    const s = Math.max(0, last.bottom + gapPx - top);           // how far up they must go
+    above.forEach(el => { go(el, -s); moved.push(el); });
+    const extra = s - h;                                         // more than the gap gives
+    if (extra > 0) items.slice(0, k).filter(onScreen).forEach(el => { go(el, -extra); moved.push(el); });
+  }
+  if (after.length) {
+    const d = bottom + gapPx - rect(after[0]).top;              // the line under the spot
+    if (d > 0) after.filter(onScreen).forEach(el => { go(el, d); moved.push(el); });
+  }
+  state.shifted = moved;
+}
+
+/** Only when --list-dim is explicitly 0 does the list hide during the animation. */
+function hideList(on) {
+  const v = parseFloat(cssVar('--list-dim'));
+  $('#project-list').style.visibility = on && v === 0 ? 'hidden' : '';
+}
+
+function lockScroll(on) {
+  document.body.classList.toggle('project-open', on);
+}
+
 async function openProject(id) {
   const p = state.data.projects.find(x => x.id === id);
   if (!p) { state.openId = null; return; }
   popOff();
-
-  const plus = $(`#project-list li[data-id="${CSS.escape(id)}"] .plus`);
-  state.scrollBefore = scrollY;
   state.openId = id;
+  state.busy = true;
   renderFrame(p);
 
-  if (plus) { plus.classList.remove('is-growing'); plus.classList.add('is-shrunk'); await wait(T_LINE); }
-  if (state.openId !== id) return;           // navigated away meanwhile
+  const view = $('#view-projects'), layer = $('#project-layer'), frame = $('#frame');
+  const clicked = state.clickedPlus;
+  const plus = clicked && clicked.closest('li')?.dataset.id === id ? clicked : listPlus(id);
+  state.returnPlus = plus;
+  lockScroll(true);
+  // the layer is laid out (to know where frame and title go) but shows nothing yet
+  const title = $('#detail-title');
+  frame.classList.add('is-closed');
+  frame.classList.remove('is-shrunk');
+  frame.hidden = title.hidden = false;
+  title.style.visibility = 'hidden';
+  layer.style.transition = 'none';
+  layer.style.visibility = 'hidden';
+  layer.hidden = false;
+  const c = centreOf(frame);
 
-  const frame = $('#frame');
-  $('#view-projects').classList.add('is-open');
-  document.documentElement.classList.add('project-open');
-  document.body.classList.add('project-open');
-  scrollTo(0, 0);
-  frame.classList.add('is-closed', 'is-shrunk', 'is-opening');
-  frame.hidden = false;
-  $('#detail-title').hidden = false;
-  void frame.offsetWidth;
+  const li = plus && plus.offsetParent ? plus.closest('li') : null;
+  if (li) {
+    // 2 · the cross travels to the centre while its line travels down to the title
+    const from = centreOf(plus.querySelector('svg'));
+    plus.classList.add('is-away');
+    state.line = lineCopy(li);
+    li.classList.add('is-gone');                   // the line leaves its place
+    const dy = titleDrop(li);
+    view.classList.add('is-dim'); hideList(true);  // 1 · the list goes, the line stays
+    moveLine(state.line, 0, false);
+    moveLine(state.line, dy, true);
+    shiftLines(li, false);                         // the others make room
+    await travelCross(from, c);
+  } else {
+    view.classList.add('is-dim'); hideList(true);
+    title.style.visibility = '';
+  }
+  if (state.openId !== id) { state.busy = false; return; }
 
-  frame.classList.remove('is-shrunk');       // cross grows at the centre
-  await wait(T_LINE);
-  if (state.openId !== id) return;
-  frame.classList.remove('is-closed', 'is-opening');   // → angles, to the corners
+  // 3 · same cross, now the frame's; window and corners open together
+  windowTo(c, false, false);
+  layer.style.visibility = '';
+  $('#travel svg')?.remove();
+  if (!(plus && plus.offsetParent)) {          // direct link: the cross grows in place
+    frame.classList.add('is-shrunk');
+    layer.getBoundingClientRect();
+    frame.classList.remove('is-shrunk');
+    await wait(T.line);
+  }
+  windowTo(c, true, true);
+  frame.classList.remove('is-closed');
+  await wait(T.move);
+
+  view.classList.add('is-open');               // 4 · only the project remains
+  title.style.visibility = '';                 // the line has become the title
+  state.line?.remove(); state.line = null;
+  state.busy = false;
 }
 
-/** Close by clicking outside: angles converge, the cross retracts, the list
-    returns with its crosses growing in. */
 async function closeProjectAnimated() {
   if (!state.openId || state.busy) return;
   state.busy = true;
-  const frame = $('#frame');
-  frame.classList.add('is-opening', 'is-closed');     // content out, angles → cross
-  await wait(T_MOVE);
-  frame.classList.add('is-shrunk');                   // cross → a point
-  await wait(T_LINE);
-  closeProject();
-  $$('#project-list .plus').forEach(el => { el.classList.remove('is-shrunk'); replay(el, 'is-growing'); });
+  const id = state.openId;
+  const view = $('#view-projects'), layer = $('#project-layer'), frame = $('#frame'), drops = $('#drops');
+  const c = centreOf(frame);
+
+  view.classList.remove('is-open');            // the (hidden) list is back under the window
+  const plus = state.returnPlus || listPlus(id);
+  const li = plus && plus.offsetParent ? plus.closest('li') : null;
+  if (li) {                                    // the title becomes the travelling line again
+    li.classList.add('is-gone');
+    state.line = lineCopy(li);
+    moveLine(state.line, titleDrop(li), false);
+    $('#detail-title').style.visibility = 'hidden';
+  }
+  // 1 · window, corners, project and dropped images shrink to the centre
+  windowTo(c, true, false);
+  drops.style.clipPath = 'inset(0px 0px 0px 0px)';
+  drops.getBoundingClientRect();
+  windowTo(c, false, true);
+  drops.style.clipPath = pointClip(c);
+  frame.classList.add('is-closed');
+  await wait(T.move);
+
+  // 2 · the cross travels back to its line
+  layer.style.visibility = 'hidden';
+  drops.innerHTML = '';
+  if (li) {                                    // cross and line return together
+    moveLine(state.line, 0, true);
+    shiftLines(li, true);
+    await travelCross(c, centreOf(plus.querySelector('svg')));
+  }
+  closeProject();                              // 3 · the list returns to full black
   history.replaceState(null, '', '#/projects');
   state.busy = false;
 }
 
-/** Where the plus for this project currently sits on screen. */
-function originOfPlus(id) {
-  const li = $(`#project-list li[data-id="${CSS.escape(id)}"] .plus`);
-  if (!li) return null;
-  const r = li.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-}
-
+/** Immediate close — used when navigating away. */
 function closeProject() {
   if (!state.openId) return;
   state.openId = null;
-  $('#view-projects').classList.remove('is-open');
-  $('#frame').classList.add('is-closed', 'is-shrunk');
-  document.documentElement.classList.remove('project-open');
-  document.body.classList.remove('project-open');
-  $('#frame').hidden = true;
-  $('#detail-title').hidden = true;
-  $('#drops').innerHTML = '';
-  scrollTo(0, state.scrollBefore || 0);   // back to the same place in the list
+  const frame = $('#frame'), drops = $('#drops');
+  $('#view-projects').classList.remove('is-open', 'is-dim');
+  frame.classList.add('is-closed', 'is-shrunk');
+  frame.style.visibility = '';
+  const layer = $('#project-layer');
+  layer.style.clipPath = layer.style.visibility = layer.style.transition = '';
+  windowTo({ x: 0, y: 0 }, false, false);
+  frame.hidden = $('#detail-title').hidden = $('#project-layer').hidden = true;
+  $('#travel').innerHTML = '';
+  state.line = null;
+  $('#detail-title').style.visibility = '';
+  hideList(false);
+  $$('#project-list li.is-gone').forEach(el => el.classList.remove('is-gone'));
+  (state.shifted || []).forEach(el => { el.style.transition = 'none'; el.style.transform = ''; });
+  state.shifted = [];
+  $$('#project-list .plus.is-away').forEach(el => el.classList.remove('is-away'));
+  drops.innerHTML = '';
+  drops.style.clipPath = '';
+  lockScroll(false);
 }
 
-function renderFrame(p) {
+function renderFrame(p, textOnly) {
   state.project = p;
 
-  $('#detail-title').innerHTML = `<b>${p.date} ${p.ref}</b> ${escapeHTML(t(p, 'description'))}`;
+  $('#detail-title').innerHTML =
+    `<div class="line"><span class="entry">${PLUS_SVG.replace('plus is-growing', 'plus is-away')}` +
+    `<span class="code">${p.date} ${p.ref}</span> ${escapeHTML(t(p, 'description'))}</span></div>`;
   $('#detail-content').textContent = t(p, 'content');
 
-  const collab = p.collaboration
-    ? (p.collab_link
-        ? `<a href="${p.collab_link}" target="_blank" rel="noopener" data-clickable>${escapeHTML(p.collaboration)}</a>`
-        : escapeHTML(p.collaboration))
-    : '';
+  /* names and links pair up by position: "OLAC Studio, squadra" +
+     "https://olac.studio/, https://www.squadra.works" → two separate links */
+  const linked = (names, links) => {
+    const ls = list(links);
+    return list(names).map((n, i) => ls[i]
+      ? `<a href="${escapeHTML(ls[i])}" target="_blank" rel="noopener" data-clickable>${escapeHTML(n)}</a>`
+      : escapeHTML(n)).join(', ');
+  };
+  // collaborations and office work are different: an office project is never
+  // shown as a collaboration
+  const collab = p.collaboration ? linked(p.collaboration, p.collab_link) : '';
+  const office = !p.collaboration && p.working_for ? linked(p.working_for, p.collab_link) : '';
 
   $('#detail-meta').innerHTML = [
     [ui('meta_status'), escapeHTML(t(p, 'status'))],
     [ui('meta_collaboration'), collab],
+    [ui('meta_working_for'), office],
     [ui('meta_place'), escapeHTML(t(p, 'place'))],
-    [ui('meta_client'), escapeHTML(t(p, 'client'))]
+    [ui('meta_client'), escapeHTML(t(p, 'client'))],
+    [ui('meta_credits'), escapeHTML(t(p, 'image_credits'))]       // always the last line
   ].filter(([, v]) => v)
    .map(([k, v]) => `<div><dt>${k}:</dt><dd>${v}</dd></div>`).join('');
 
+  if (textOnly) return;                     // language switch: images stay as they are
   const stack = $('#stack');
   stack.innerHTML = '';
   if (p.images[0]) stack.appendChild(mediaEl(p.images[0], 'main'));
@@ -776,17 +1032,26 @@ function infoPair(base, dup = '') {
 }
 
 /** Plain text in, with emails and URLs made clickable. */
+/** Info texts, line by line:
+      "instagram https://…"  → the word, linked
+      "https://…" alone      → a short name (instagram.com → "instagram"), linked
+      an e-mail address      → a mailto link
+    Nothing else is touched. */
 function linkify(text) {
-  text = String(text).split('\n').map(line => {
+  const label = url => {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      return host.split('.').slice(-2, -1)[0] || host;     // instagram.com → instagram
+    } catch (e) { return url; }
+  };
+  const link = (href, txt) =>
+    `<a href="${escapeHTML(href)}" target="_blank" rel="noopener" data-clickable>${escapeHTML(txt)}</a>`;
+  return String(text).split('\n').map(line => {
     const m = line.match(/^(.*?)\s*(https?:\/\/\S+)\s*$/);
-    if (!m || !m[1].trim()) return escapeHTML(line);
-    return `<a href="${m[2]}" target="_blank" rel="noopener" data-clickable>${escapeHTML(m[1].trim())}</a>`;
+    if (m) return link(m[2], m[1].trim() || label(m[2]));
+    return escapeHTML(line).replace(/([\w.+-]+@[\w-]+\.[\w.-]+)/g,
+      '<a href="mailto:$1" data-clickable>$1</a>');
   }).join('\n');
-  return text
-    .replace(/([\w.+-]+@[\w-]+\.[\w.-]+)/g,
-      '<a href="mailto:$1" data-clickable>$1</a>')
-    .replace(/(^|[\s>])(https?:\/\/[^\s<"]+)(?![^<]*<\/a>)/g,
-      '$1<a href="$2" target="_blank" rel="noopener" data-clickable>$2</a>');
 }
 
 function renderInfo() {
@@ -849,6 +1114,19 @@ $('#accordion').addEventListener('pointerout', e => {
 
 /* ── chrome ────────────────────────────────────────────────────────────── */
 
+/** The tags keep the navigation size when they fit between LAB and the
+    bottom edge; on a short window they shrink just enough to stay below LAB. */
+function fitRail() {
+  const nav = $('#filters');
+  if (!nav || nav.hidden) return;
+  nav.style.fontSize = '';
+  // room = from the first line of text (just under LAB) to the bottom edge
+  const avail = innerHeight - parseFloat(getComputedStyle($('#view-projects')).paddingTop);
+  const h = nav.getBoundingClientRect().height;
+  if (h > avail) nav.style.fontSize = (parseFloat(getComputedStyle(nav).fontSize) * avail / h) + 'px';
+}
+addEventListener('resize', () => fitRail());
+
 function syncFilters() {
   const nav = $('#filters');
   if (!nav) return;
@@ -859,7 +1137,8 @@ function syncFilters() {
   nav.innerHTML = categories().map(c =>
     `<button type="button" class="filter" data-filter="${c.key}" data-clickable
        aria-pressed="${state.filter === c.key}">${escapeHTML(c.label)}</button>`)
-    .join('<span class="rule">|</span>');
+    .join('');
+  fitRail();
 }
 
 $('#filters')?.addEventListener('click', e => {
@@ -921,6 +1200,7 @@ function render() {
     // rebuilding mid-view would restart every cross, so only when needed
     if (changed || state.listLang !== state.lang) { renderList(); state.listLang = state.lang; }
     if (route.open && route.open !== state.openId) openProject(route.open);
+    else if (route.open && state.project) renderFrame(state.project, true);   // e.g. DE ⇄ EN
   }
   if (route.view === 'splash') {
     $('#view-splash').classList.remove('is-exiting');
