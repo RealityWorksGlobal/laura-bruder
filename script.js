@@ -86,7 +86,8 @@ function categories() {
 
 const titleCase = s => s.replace(/(^|[\s-])(\w)/g, (m, a, b) => a + b.toUpperCase());
 
-const CACHE_KEY = 'lab-data-v8';
+const CACHE_KEY = 'lab-data-v9';
+const CACHE_MAX_AGE = 30000;   // ms: a reload after this reads the sheet again
 
 /* the cross grammar: lines grow / retract (LINE), angles travel (MOVE).
    Must match --line and --move in style.css. */
@@ -224,7 +225,9 @@ async function loadData() {
   const cached = sessionStorage.getItem(CACHE_KEY);
   if (cached) {
     try {
-      state.data = JSON.parse(cached);
+      const c = JSON.parse(cached);
+      if (!c.savedAt || Date.now() - c.savedAt > CACHE_MAX_AGE) throw 0;   // too old: read the sheet
+      state.data = c;
       if (!state.data.inspiration || !state.data.inspiration.length)
         state.data.inspiration = PLACEHOLDER;
       return;
@@ -260,7 +263,7 @@ async function loadData() {
       settings.filter(r => r.key).map(r => [key(r.key), { en: r.en, de: r.de }]))
   };
 
-  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(state.data)); } catch (e) {}
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ...state.data, savedAt: Date.now() })); } catch (e) {}
 
   if (!state.data.inspiration.length) state.data.inspiration = PLACEHOLDER;
 }
@@ -323,7 +326,8 @@ const cursor = (() => {
     if (state.busy) return '';                  // while animating: a plain plus, no flicker
     if (state.openId) {
       const frame = $('#frame');
-      if (target.closest('#drops img, #drops video')) return '';   // drag, not close
+      const drop = target.closest('#drops img, #drops video');
+      if (drop) return inCloseZone(drop, x, y) ? 'is-close' : '';   // its corner closes it, the rest drags
       const inside = frame && !frame.hidden && frame.contains(target);
       return inside ? '' : 'is-close';          // outside an open project closes it
     }
@@ -345,7 +349,10 @@ const cursor = (() => {
     }
   }, { passive: true });
 
-  return { at() { return { x, y }; } };
+  return {
+    at() { return { x, y }; },
+    snap(px, py) { x = px; y = py; draw(); }     // lock onto a point
+  };
 })();
 
 /* ── the travelling LAB mark ───────────────────────────────────────────── */
@@ -505,6 +512,7 @@ function setBrand(open) {
   if (open) brand.classList.remove('is-shrunk');
   document.body.classList.toggle('brand-open', open);
 
+  if (open) { alignBrand(); setTimeout(alignBrand, T.move + 50); }
   refreshLab();                     // LAB flies to its new place
 }
 
@@ -512,7 +520,44 @@ function setBrand(open) {
    nav item, and a click on either the images or the brand goes to projects. */
 /* Reset on every page load: land on inspiration, click → brand, click →
    projects. For the rest of that visit both go straight to projects. */
-let seenBrand = false;
+/* once per visit: survives a reload, reset when the tab is closed */
+let seenBrand = (() => { try { return sessionStorage.getItem('lab-seen-brand') === '1'; } catch (e) { return false; } })();
+function markBrandSeen() {
+  seenBrand = true;
+  try { sessionStorage.setItem('lab-seen-brand', '1'); } catch (e) {}
+}
+
+/* Brand text: its first line sits on the baseline of LAB, beside it; from the
+   second line on it runs full width under LAB. Measured, so it follows any
+   size parameter. */
+function alignBrand() {
+  const st = $('#brand .statement'), anchor = $('#brand .lab-anchor');
+  const [bLab, bText] = $$('#brand .bl');
+  if (!st || !bLab || !bText || st.offsetParent === null) return;
+  st.style.paddingTop = anchor.style.marginTop = anchor.style.marginBottom = '';
+  // layout offsets, not screen rects: immune to the opening animation's transforms
+  const abs = el => { let y = 0; for (; el; el = el.offsetParent) y += el.offsetTop; return y; };
+  const top = el => abs(el) - abs(st);                    // relative to the paragraph
+  const d = top(bLab) - top(bText);
+  if (d <= 0) return;
+  st.style.paddingTop = d + 'px';
+  anchor.style.marginTop = -d + 'px';                     // LAB stays put
+  // LAB ends with the first text line, so the second line runs full width
+  const lineH = parseFloat(getComputedStyle(st).lineHeight) || 0;
+  const firstLineBottom = d + lineH;
+  const labBottom = top(anchor) + anchor.offsetHeight;
+  anchor.style.marginBottom = (firstLineBottom - labBottom - 1) + 'px';
+  refreshLab();
+}
+addEventListener('resize', alignBrand);
+document.fonts && document.fonts.ready.then(alignBrand);
+
+/* LAB → the inspirations (from the brand too) */
+lab.addEventListener('click', e => {
+  if (state.view !== 'splash' || state.busy) return;   // other views: the #/ link
+  e.preventDefault();
+  if (brandOpen) arriveSplash(false);
+});
 
 /** Arriving on the splash: the cross grows out of its centre, and if the
     brand is wanted, it then splits into the frame's angles. */
@@ -542,9 +587,81 @@ async function arriveSplash(openBrand) {
   brand.classList.remove('is-shrunk');
 }
 
+/* Aim to enter: bring the cursor cross exactly onto the centre cross (within
+   --aim-tolerance) and it locks on and enters — the same as a click. It only
+   fires when the cursor moves INTO the target, never when it simply rests there. */
+let aimArmed = false;
+addEventListener('pointermove', e => {
+  if (state.view !== 'splash' || brandOpen || state.busy || e.pointerType !== 'mouse') {
+    aimArmed = false; return;
+  }
+  const r = brand.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const tol = parseFloat(cssVar('--aim-tolerance')) || 5;
+  if (Math.hypot(e.clientX - cx, e.clientY - cy) > tol) { aimArmed = true; return; }
+  if (!aimArmed) return;
+  aimArmed = false;
+  cursor.snap(cx, cy);                          // the two crosses become one
+  if (!seenBrand) splashStep();                 // first visit: the cross opens to the brand
+  else aimToList(cx, cy);                       // after that: opens like a project, onto the list
+}, { passive: true });
+
+/* The cross opens like a project, straight onto the list: its two angles fly
+   from the centre out of the screen, and the list grows from that point as a
+   window over the inspiration image (which simply stays behind it). */
+async function aimToList(cx, cy) {
+  if (state.busy) return;
+  state.busy = true;
+  stopRotation();
+  const gate = $('#gate'), list = $('#view-projects');
+  const dur = cssVar('--aim-open') || '650ms', ease = cssVar('--ease-travel');
+  const W = innerWidth, H = innerHeight;
+  // the window: s = 0 a point at the cross, 1 the screen — in the list's own
+  // box, which is taller than the screen
+  let box = { top: 0, left: 0, width: W, height: H };
+  const win = s => {
+    const t = cy - cy * s - box.top, l = cx - cx * s - box.left;
+    const b = box.top + box.height - (cy + (H - cy) * s), r = box.left + box.width - (cx + (W - cx) * s);
+    return `inset(${t}px ${r}px ${b}px ${l}px)`;
+  };
+
+  const flyers = $$('#brand .angle').map(a => {
+    const r = a.getBoundingClientRect(), c = a.cloneNode(true), tl = a.classList.contains('tl');
+    Object.assign(c.style, { left: r.left + 'px', top: r.top + 'px', transform: 'none', transition: 'none' });
+    c.dataset.dx = tl ? -(r.right + 40) : W - r.left + 40;
+    c.dataset.dy = tl ? -(r.bottom + 40) : H - r.top + 40;
+    gate.appendChild(c);
+    return c;
+  });
+  brand.style.visibility = 'hidden';            // the copies take over
+
+  document.body.classList.add('gate-on');       // inspiration held behind, list on top, no fades
+  list.style.transition = 'none';
+  list.style.clipPath = 'inset(100%)';
+  go('#/projects');
+  await wait(40);                               // the list lays itself out, hidden
+  box = list.getBoundingClientRect();
+  list.style.clipPath = win(0);
+  void list.offsetWidth;
+  list.style.transition = `clip-path ${dur} ${ease}`;
+  list.style.clipPath = win(1);
+  flyers.forEach(c => {
+    c.style.transition = `transform ${dur} ${ease}`;
+    c.style.transform = `translate(${c.dataset.dx}px,${c.dataset.dy}px)`;
+  });
+  await wait(cssTime('--aim-open') || 650);
+  flyers.forEach(c => c.remove());
+  list.style.transition = list.style.clipPath = '';
+  brand.style.visibility = '';
+  $('#view-splash').classList.remove('is-leaving');
+  list.classList.remove('is-entering');          // or the fades would replay now
+  document.body.classList.remove('gate-on');
+  state.busy = false;
+}
+
 const splashStep = () => {
   if (!brandOpen && !seenBrand) {
-    seenBrand = true;
+    markBrandSeen();
     setBrand(true);
     return;
   }
@@ -552,7 +669,8 @@ const splashStep = () => {
     handoff();
     return;
   }
-  go('#/projects');
+  const r = brand.getBoundingClientRect();     // a click opens the same way as aiming
+  aimToList(r.left + r.width / 2, r.top + r.height / 2);
 };
 $('#view-splash').addEventListener('click', splashStep);
 
@@ -568,13 +686,42 @@ const PLUS_SVG =
   '<line x1="0" y1="0" x2="14"  y2="0"   pathLength="1"/>' +
   '</svg></span>';
 
-function renderList() {
-  const ol = $('#project-list');
-  ol.innerHTML = '';
+/* the same cross, as an outline only — for projects without a page. A paper-
+   coloured cross inside the black one, thinner by --cross-outline each side. */
+const OUTLINE_SVG = PLUS_SVG.replace('</svg>',
+  '<line class="hollow" x1="0" y1="0" x2="0"   y2="-14" pathLength="1"/>' +
+  '<line class="hollow" x1="0" y1="0" x2="-14" y2="0"   pathLength="1"/>' +
+  '<line class="hollow" x1="0" y1="0" x2="0"   y2="14"  pathLength="1"/>' +
+  '<line class="hollow" x1="0" y1="0" x2="14"  y2="0"   pathLength="1"/></svg>');
 
+/* Endless list: once the end comes near, the whole list follows again —
+   no break between rounds. Each round is marked so lines stay distinct. */
+function renderList(keep) {
+  // keep: rebuild as many rounds as before, so a filter never loses the scroll
+  const rounds = keep ? Math.max(1, state.loopRound || 1) : 1;
+  $('#project-list').innerHTML = '';
+  state.loopRound = 0;
+  for (let i = 0; i < rounds; i++) appendRound();
+  fillLoop();
+}
+
+function fillLoop() {
+  if (state.view !== 'projects' || state.openId || !state.data.projects.length) return;
+  if ($('#project-list').offsetParent === null) return;   // not laid out yet
+  const doc = document.documentElement;
+  let guard = 0;
+  while (doc.scrollHeight - (scrollY + innerHeight) < innerHeight * 1.5 && guard++ < 20) appendRound();
+}
+addEventListener('scroll', fillLoop, { passive: true });
+addEventListener('resize', fillLoop);
+
+function appendRound() {
+  const ol = $('#project-list');
+  const round = state.loopRound++;
   ordered().forEach(p => {
     const li = document.createElement('li');
     li.dataset.id = p.id;
+    li.dataset.round = round;
 
     const a = document.createElement(p.hasPage ? 'a' : 'span');
     a.className = 'entry' + (p.hasPage ? '' : ' no-plus');
@@ -582,7 +729,7 @@ function renderList() {
       a.href = `#/projects/${encodeURIComponent(p.id)}`;
       a.dataset.clickable = '';
     }
-    a.innerHTML = PLUS_SVG +
+    a.innerHTML = (p.hasPage ? PLUS_SVG : OUTLINE_SVG) +
       `<span class="code">${p.date} ${p.ref}</span> ` +
       `${escapeHTML(t(p, 'description'))}`;
 
@@ -615,13 +762,14 @@ function reshuffle(filter) {
 
   const ol = $('#project-list');
   const first = new Map();
-  $$('li', ol).forEach(li => first.set(li.dataset.id, li.getBoundingClientRect().top));
+  const key = li => li.dataset.id + '|' + li.dataset.round;
+  $$('li', ol).forEach(li => first.set(key(li), li.getBoundingClientRect().top));
 
-  renderList();
+  renderList(true);
   syncFilters();
 
   $$('li', ol).forEach(li => {
-    const was = first.get(li.dataset.id);
+    const was = first.get(key(li));
     if (was == null) return;
     const now = li.getBoundingClientRect().top;
     li.style.transition = 'none';
@@ -811,6 +959,7 @@ async function openProject(id) {
   const plus = clicked && clicked.closest('li')?.dataset.id === id ? clicked : listPlus(id);
   state.returnPlus = plus;
   lockScroll(true);
+  document.body.classList.add('project-view');      // only LAB, DE and the title stay
   // the layer is laid out (to know where frame and title go) but shows nothing yet
   const title = $('#detail-title');
   frame.classList.add('is-closed');
@@ -864,6 +1013,7 @@ async function openProject(id) {
 async function closeProjectAnimated() {
   if (!state.openId || state.busy) return;
   state.busy = true;
+  document.body.classList.remove('project-view');   // nav and tags come back as it closes
   const id = state.openId;
   const view = $('#view-projects'), layer = $('#project-layer'), frame = $('#frame'), drops = $('#drops');
   const c = centreOf(frame);
@@ -922,6 +1072,7 @@ function closeProject() {
   drops.innerHTML = '';
   drops.style.clipPath = '';
   lockScroll(false);
+  document.body.classList.remove('project-view');
 }
 
 function renderFrame(p, textOnly) {
@@ -963,10 +1114,19 @@ function renderFrame(p, textOnly) {
   $('#drops').dataset.next = '1';
 }
 
+/* A dropped image's top-right corner (--close-zone) closes it. Nothing marks
+   it: only the cursor turning into a cross of closing. */
+function inCloseZone(el, x, y) {
+  const r = el.getBoundingClientRect(), z = parseFloat(cssVar('--close-zone')) || 80;
+  return x >= r.right - z && x <= r.right && y >= r.top && y <= r.top + z;
+}
+let closedDrop = false;   // the click that follows a close must not drop a new image
+
 /** Inside the frame, a click drops the next image where you clicked — free to
     spill over the page. Outside it, the frame closes. */
 document.addEventListener('click', e => {
   if (!state.openId || state.busy) return;
+  if (closedDrop) { closedDrop = false; return; }
   if (e.target.closest('#chrome')) return;
 
   const frame = $('#frame');
@@ -979,10 +1139,16 @@ document.addEventListener('click', e => {
   if (!p) return;
 
   const drops = $('#drops');
-  const n = Number(drops.dataset.next || 1);
-  if (n >= p.images.length) return;           // every image shown once: stop
+  // the next image in order that is not on screen — a closed one can come back
+  const shown = new Set($$('#drops [data-idx]').map(d => Number(d.dataset.idx)));
+  const free = [];
+  for (let i = 1; i < p.images.length; i++) if (!shown.has(i)) free.push(i);
+  if (!free.length) return;                   // every image is out: stop
+  const from = Number(drops.dataset.next || 1);
+  const n = free.find(i => i >= from) ?? free[0];
 
   const img = mediaEl(p.images[n]);
+  img.dataset.idx = n;
   img.style.left = e.clientX + 'px';
   img.style.top = e.clientY + 'px';
   img.style.transform = 'translate(-50%,-38%)';
@@ -995,9 +1161,15 @@ document.addEventListener('click', e => {
 (() => {
   let el = null, dx = 0, dy = 0;
   document.addEventListener('pointerdown', e => {
+    closedDrop = false;                          // only the click right after a close is eaten
     const t = e.target.closest('#drops img, #drops video');
     if (!t) return;
     e.preventDefault();
+    if (inCloseZone(t, e.clientX, e.clientY)) {
+      t.remove();
+      closedDrop = true;
+      return;
+    }
     el = t;
     el.style.zIndex = ++state.zTop;
     dx = e.clientX - parseFloat(el.style.left);
@@ -1058,6 +1230,7 @@ function renderInfo() {
   const a = state.data.about;
   $('#about').textContent = t(a, 'about');
   $('#brand-text').textContent = t(a, 'brand');
+  requestAnimationFrame(alignBrand);
 
   // the network paragraph ends "These include:" — the collaborators tab follows
   const collabs = state.data.collaborators.map(c => c.collaborator_link
@@ -1088,9 +1261,42 @@ function renderInfo() {
            ${s.portrait ? `data-portrait="${s.portrait}"` : ''}>
         ${PLUS_SVG}<span>${escapeHTML(s.title)}</span>
       </div>
-      <div class="acc-body"><div class="acc-body-inner">${linkify(s.body)}${s.extra || ''}</div></div>
+      <div class="acc-body"><div class="acc-body-inner"><div class="acc-text">${linkify(s.body)}${s.extra || ''}</div></div></div>
     </div>`;
   }).join('');
+  markPortraitName();
+}
+
+/* The name "Laura Bruder" anywhere on the info page shows her portrait on
+   hover, where the project images show. Unmarked: only the image appears.
+   The file comes from the info tab, column "portrait" (first filled cell). */
+function portraitPath() {
+  for (const r of state.data.infoRows || []) {
+    for (const [k, v] of Object.entries(r)) {
+      if (/^portrait/i.test(k) && v && /\.\w{3,4}$/.test(String(v).trim())) return String(v).trim();
+    }
+  }
+  return '';
+}
+function markPortraitName() {
+  const path = portraitPath();
+  if (!path) return;
+  const walker = document.createTreeWalker($('#view-info'), NodeFilter.SHOW_TEXT);
+  const hits = [];
+  for (let n; (n = walker.nextNode());) if (/laura bruder/i.test(n.nodeValue)) hits.push(n);
+  hits.forEach(n => {
+    const frag = document.createDocumentFragment();
+    n.nodeValue.split(/(laura bruder)/i).forEach(part => {
+      if (!/^laura bruder$/i.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+      const s = document.createElement('span');
+      s.className = 'portrait-name';
+      s.textContent = part;
+      s.addEventListener('pointerenter', () => popOn(path));
+      s.addEventListener('pointerleave', popOff);
+      frag.appendChild(s);
+    });
+    n.replaceWith(frag);
+  });
 }
 
 $('#accordion').addEventListener('click', e => {
@@ -1124,8 +1330,33 @@ function fitRail() {
   const avail = innerHeight - parseFloat(getComputedStyle($('#view-projects')).paddingTop);
   const h = nav.getBoundingClientRect().height;
   if (h > avail) nav.style.fontSize = (parseFloat(getComputedStyle(nav).fontSize) * avail / h) + 'px';
+  alignEdges();
 }
 addEventListener('resize', () => fitRail());
+
+/* DE (right edge) and the last tag (bottom edge) sit at the same distance,
+   --edge-gap, measured on the letters themselves: the empty space a font
+   leaves after its last letter is measured and taken off. */
+const inkCanvas = document.createElement('canvas').getContext('2d');
+function trailingSpace(el) {
+  const cs = getComputedStyle(el);
+  let txt = el.textContent.trim();
+  if (cs.textTransform === 'uppercase') txt = txt.toUpperCase();
+  if (!txt) return 0;
+  inkCanvas.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const m = inkCanvas.measureText(txt.slice(-1));
+  const ls = parseFloat(cs.letterSpacing) || 0;
+  return Math.max(0, m.width - m.actualBoundingBoxRight) + ls;
+}
+function alignEdges() {
+  const gap = parseFloat(cssVar('--edge-gap')) || 0;
+  const de = $('#lang'), nav = $('#nav-main');
+  if (de && nav) nav.style.right = (gap - trailingSpace(de)) + 'px';
+  const rail = $('#filters'), last = rail && !rail.hidden && $$('#filters .filter').pop();
+  if (last) rail.style.bottom = (gap - trailingSpace(last)) + 'px';
+}
+addEventListener('resize', alignEdges);
+document.fonts && document.fonts.ready.then(alignEdges);
 
 function syncFilters() {
   const nav = $('#filters');
@@ -1154,6 +1385,7 @@ function syncChrome() {
   $('[data-nav="brand"]').textContent = ui('nav_brand');
   $('#nav-info').textContent = ui('nav_info');
   $('#lang').textContent = ui('lang_switch');
+  alignEdges();
   document.title = ui('site_title');
   const here = location.hash.replace(/^#\/?/, '').split('/')[0] || 'splash';
   $$('#chrome [data-nav]').forEach(a => a.setAttribute('aria-current',
@@ -1205,7 +1437,7 @@ function render() {
   if (route.view === 'splash') {
     $('#view-splash').classList.remove('is-exiting');
     showSplash(state.splashIndex);
-    if (route.brand) seenBrand = true;
+    if (route.brand) markBrandSeen();
     if (changed) arriveSplash(!!route.brand);
     else setBrand(!!route.brand);
   }
@@ -1232,6 +1464,7 @@ function render() {
 
   syncChrome();
   requestAnimationFrame(refreshLab);      // LAB always flies to its next place
+  requestAnimationFrame(fillLoop);        // the endless list fills once it is shown
   setTimeout(refreshLab, 680);   // again once the entry animation has settled
 }
 

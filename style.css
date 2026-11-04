@@ -28,7 +28,7 @@
   /* ── COLOURS ───────────────────────────────────────────────────────── */
   --paper:            #ffffff;   /* background */
   --ink:              #000000;   /* text, crosses, cursor */
-  --ghost:            #7d7d7d;   /* the small grey project details */
+  --ghost:            #000000;   /* the small grey project details */
 
 
   /* ── TYPEFACES ─────────────────────────────────────────────────────── */
@@ -43,15 +43,18 @@
   /* LAB — the big word (corner, landing, info) */
   --mark-size:        clamp(40px, 5.8vw, 124px);
   --mark-weight:      700;
-  --mark-tracking:    -.045em;
-  --mark-leading:     .78;       /* also how much height LAB takes at the top */
+  --mark-tracking:    -.01em;
+  --mark-leading:     0.9;       /* also how much height LAB takes at the top */
 
   /* MAIN TEXT — project list, landing sentence, info page.
      The open project's title is its own list line, so it follows this too. */
   --main-size:        clamp(17px, 2.45vw, 46px);
   --list-size:        var(--main-size);   /* project list only (own size on phones) */
   --main-weight:      400;
-  --strong-weight:    700;       /* the IDs (2607 BIR) and the info categories */
+  --info-head-weight: 400;       /* info categories: 700 = bold */
+  --info-head-style:  italic;    /* info categories: italic  or  normal */
+  --id-weight:        400;       /* the IDs (2607 BIR): 700 = bold */
+  --id-style:         italic;    /* the IDs: italic  or  normal */
   --list-leading:     1.4;       /* line height: project list, info categories */
   --text-leading:     1.3;       /* line height: landing sentence, info texts */
   --list-tracking:    -.015em;   /* letter spacing: project list, info categories */
@@ -63,27 +66,30 @@
   --desc-leading:     1.35;
 
   /* PROJECT DETAILS — status · collaboration · place · client · credits */
-  --meta-size:        clamp(9px, .7vw, 13px);
-  --meta-leading:     1.65;
+  --meta-size:        clamp(22px, .7vw, 46px);
+  --meta-leading:     1.3;
 
-  /* NAVIGATION — PROJECTS  INFO  DE (serif). The tags use the same size. */
+  /* NAVIGATION — PROJECTS  INFO  DE (serif) */
   --nav-size:         clamp(17px, 1.85vw, 36px);
   --nav-weight:       700;
   --nav-tracking:     .01em;
-  --nav-leading:      .8;
+  --nav-leading:      1.2;
   --nav-gap:          1.15em;    /* space between PROJECTS, INFO and DE */
 
   /* TAGS — vertical on the left, last letter on the bottom edge.
      On short windows they shrink by themselves so they never reach LAB. */
+  --tag-size:         clamp(17px, 1.85vw, 26px);   /* separate from the navigation */
   --rail-weight:      400;       /* 700 = bold */
   --rail-case:        uppercase; /* uppercase  or  none */
-  --rail-gap:         1.15em;    /* space between the tags */
+  --rail-gap:         1em;    /* space between the tags */
+  --edge-gap:         8px;    /* last letter of DE → right edge = last letter of the tags → bottom edge (same distance, measured on the letters) */
 
 
   /* ── CROSSES ───────────────────────────────────────────────────────────
      One cross everywhere: cursor, project list, info page, frame corners.  */
-  --cross-size:       111px;     /* size of the whole cross — try 90px or 130px */
-  --cross-weight:     .161;      /* bar thickness as a share of the size: .161 = 16%, .1 = thin */
+  --cross-size:       60px;     /* size of the whole cross — try 90px or 130px */
+  --cross-weight:     .18;       /* bar thickness as a share of the size: .161 = 16%, .1 = thin */
+  --cross-outline:    .02;       /* projects without a page: outline thickness, as a share of the size (.04 = thicker) */
   --cross-gap:        .32em;     /* space between a cross and the text after it */
   --cross-shift:      0px;       /* crosses start where LAB ends; 10px = further right */
   --hover-open:       32%;       /* cursor on a link: how far its two corners move apart */
@@ -104,6 +110,9 @@
   --brand-pad-y:      clamp(48px, 3.4vw, 100px);      /* corners ↔ sentence, above and below */
   --brand-pad-x:      clamp(28px, 3.4vw, 100px);     /* corners ↔ sentence, left and right */
   --lab-word-gap:     .18em;                        /* LAB → first word (landing and info) */
+  --close-zone:     80px;      /* dropped image: this square in its top-right corner closes it */
+  --aim-tolerance:    5px;       /* aim the cursor onto the centre cross to enter: how precise (smaller = harder) */
+  --aim-open:       650ms;     /* aiming (after the brand was seen): the cross opens like a project, out to the list */
 
   /* the two cover images */
   --cover-front-max-w: 44vw;     /* front image, largest width  (keep vw) */
@@ -125,10 +134,12 @@
   --hover-img-left:   58vw;      /* distance from the left edge */
   --hover-img-width:  36vw;
   --hover-img-height: 64vh;
+  --hover-img-top:    calc((100vh - var(--hover-img-height)) / 2);   /* distance from the top edge; now centred — try 120px */
 
 
   /* ── INFO PAGE ─────────────────────────────────────────────────────── */
-  --info-text-shift:  0px;       /* intro text: 0 = on the same line as LAB; 5px = lower, −5px = higher */
+  --info-text-shift:  0px;       /* info intro: 0 = same height as the project list; 5px = lower, −5px = higher */
+  --info-body-size:   var(--desc-size);   /* text inside the info categories: same as a project's description */
   --info-para-gap:    .9em;      /* space after the intro, after each opened text */
 
 
@@ -258,6 +269,7 @@ body[data-view="splash"] #cursor-arms{transform:none;opacity:1}
   font-size:var(--nav-size);
   line-height:var(--nav-leading);
 }
+#filters{font-size:var(--tag-size)}
 #nav-main{
   position:fixed;
   top:0;right:0;
@@ -281,7 +293,8 @@ body[data-view="splash"] #cursor-arms{transform:none;opacity:1}
 }
 #filters[hidden]{display:none}
 #filters .filter{line-height:1;font:inherit;letter-spacing:inherit;text-transform:inherit}
-#filters .filter[aria-pressed="true"]{text-decoration:underline;text-underline-offset:3px}
+#filters .filter[aria-pressed="true"]{font-style:italic}   /* the tag in use */
+#nav-main a[aria-current="true"]{font-style:italic}   /* the page you are on: PROJECTS or INFO */
 
 /* ==========================================================================
    3 · Pages
@@ -314,8 +327,8 @@ body[data-view="splash"] #cursor-arms{transform:none;opacity:1}
   padding:calc(var(--mark-size) * var(--mark-leading) + var(--gap-below-lab))
           var(--margin-right) var(--space-at-end) var(--margin-left);
 }
-/* info: the intro continues the word LAB — same baseline, starting where it ends */
-#view-info{padding-top:calc(var(--mark-size) * .74 - var(--main-size) + var(--info-text-shift))}
+/* info: the intro starts at the same height as the project list */
+#view-info{padding-top:calc(var(--mark-size) * var(--mark-leading) + var(--gap-below-lab) + var(--main-size) * (var(--list-leading) - var(--text-leading)) / 2 + var(--info-text-shift))}
 
 /* ---------- 3.1 landing: cover images ---------------------------------- */
 
@@ -362,6 +375,8 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none;
   text-justify:inter-word;
 }
 .statement .lab-anchor{float:left;margin-right:var(--lab-word-gap);letter-spacing:var(--mark-tracking)}
+/* baseline probes: brand text starts ON the baseline of LAB (set in script) */
+.bl{display:inline-block;width:0;height:0;vertical-align:baseline}
 
 /* ---------- 3.3 corners: two angles that close into a cross ------------ */
 
@@ -438,7 +453,7 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none;
 .travel-line li,.detail-title .line{margin:0}
 
 .entry{display:inline}
-.entry .code{white-space:nowrap;font-weight:var(--strong-weight)}
+.entry .code{white-space:nowrap;font-weight:var(--id-weight);font-style:var(--id-style)}
 
 /* the cross in front of a project or info category */
 .plus{
@@ -462,14 +477,17 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none;
 .plus.is-shrunk line{stroke-dashoffset:1}
 @keyframes grow{from{stroke-dashoffset:1}}
 .plus.is-growing line{animation:grow var(--line) var(--ease) backwards}
-.entry.no-plus .plus{opacity:0}
+.plus line.hollow{
+  stroke:var(--paper);
+  stroke-width:calc((var(--cross-weight) - 2 * var(--cross-outline)) * 40);
+  stroke-dasharray:calc(1 - var(--cross-outline) * 40 / 14) 1;
+}
 
 /* the hover image */
 #pop{
   position:fixed;z-index:60;
   left:var(--hover-img-left);width:var(--hover-img-width);
-  top:50%;height:var(--hover-img-height);
-  transform:translateY(-50%);
+  top:var(--hover-img-top);height:var(--hover-img-height);
   pointer-events:none;opacity:0;
 }
 #pop img,#pop video{width:100%;height:100%;object-fit:contain;display:block}
@@ -481,6 +499,13 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none;
 #view-projects.is-dim #project-list{opacity:var(--list-dim);pointer-events:none}
 #view-projects.is-open #project-list{visibility:hidden}
 body.project-open{overflow:hidden}   /* the page stops scrolling, but keeps its place */
+/* an open project keeps only LAB, DE and its title */
+#nav-main a,#filters{transition:opacity var(--mid) linear}
+body.project-view #nav-main a,
+body.project-view #filters{opacity:0;pointer-events:none}
+body.project-view #filters .filter{pointer-events:none}   /* hidden tags must not catch a click */
+/* the brand keeps only LAB and DE */
+body[data-view="splash"].brand-open #nav-main a{opacity:0;pointer-events:none}
 
 #project-layer{
   position:fixed;inset:0;z-index:50;
@@ -502,6 +527,15 @@ body.project-open{overflow:hidden}   /* the page stops scrolling, but keeps its 
 
 /* the cross travelling between its line and the centre of the frame */
 #travel{position:fixed;inset:0;z-index:70;pointer-events:none}
+/* aim or click → list: the list grows as a window from the cross, over the
+   inspiration image, which stays still behind it */
+body.gate-on #view-splash{display:block;position:fixed;inset:0;z-index:0;animation:none}
+body.gate-on #view-splash .frame-outer{opacity:1;transition:none}
+body.gate-on #view-projects{position:relative;z-index:1;animation:none;will-change:clip-path}
+body.gate-on #chrome{opacity:0}
+#gate{position:fixed;inset:0;z-index:90;pointer-events:none}
+#gate .angle{position:fixed;right:auto;bottom:auto}
+#chrome{transition:opacity var(--mid) linear}
 #travel svg{
   position:absolute;left:0;top:0;
   width:calc(var(--cross-size) * .8);height:calc(var(--cross-size) * .8);
@@ -557,10 +591,14 @@ body.project-open{overflow:hidden}   /* the page stops scrolling, but keeps its 
   text-align:var(--text-align);
 }
 
+.frame-body{grid-template-rows:minmax(0,1fr) auto}
+.stack{grid-column:1;grid-row:1 / 3}
+.detail-text{grid-column:2;grid-row:1;min-height:0;align-self:stretch !important;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}
+.detail-text::-webkit-scrollbar{display:none}   /* a long description scrolls, without a bar; the info stays at the bottom */
 .meta{
-  position:absolute;
-  right:var(--frame-pad);bottom:var(--frame-pad);
-  margin:0;text-align:right;
+  /* project info: in the text column, left-aligned like the text above, at the bottom */
+  grid-column:2;grid-row:2;align-self:end;
+  margin:0;text-align:left;
   font-size:var(--meta-size);
   line-height:var(--meta-leading);
   color:var(--ghost);
@@ -568,7 +606,9 @@ body.project-open{overflow:hidden}   /* the page stops scrolling, but keeps its 
 .meta div{display:block}
 .meta dt,.meta dd{display:inline;margin:0}
 .meta dd{margin-left:.3em}
-.meta a{text-decoration:underline;text-underline-offset:2px}
+/* links on a project page: no underline, bold only under the cursor */
+#frame a{text-decoration:none}
+#frame a:hover{font-weight:700}
 
 .detail-title[hidden]{display:none}
 #project-layer .detail-title{flex:none;margin-top:var(--title-gap)}
@@ -605,12 +645,13 @@ body.project-open{overflow:hidden}   /* the page stops scrolling, but keeps its 
   line-height:var(--list-leading);
   letter-spacing:var(--list-tracking);
 }
-.acc-head > span:last-child{font-weight:var(--strong-weight)}
+.acc-head > span:last-child{font-weight:var(--info-head-weight);font-style:var(--info-head-style)}
 .acc-head .plus{transition:transform var(--mid) var(--ease)}
 .acc-item.is-open .acc-head .plus{transform:rotate(45deg)}
 
 .acc-body{overflow:hidden;max-height:0;transition:max-height var(--slow) var(--ease)}
 .acc-item.is-open .acc-body{max-height:4000px}
+.acc-text{font-size:var(--info-body-size)}   /* own box, so the indent stays the heads' */
 .acc-body-inner{
   padding:.1em 0 var(--info-para-gap) calc(var(--cross-x) + var(--hang));
   line-height:var(--text-leading);
@@ -657,6 +698,7 @@ body.is-ready #loader{opacity:0;pointer-events:none}
   #project-list{text-align:left}
   .frame-body{grid-template-columns:1fr}
   #frame{height:auto}
+  .stack,.detail-text,.meta{grid-column:auto;grid-row:auto}
   .meta{position:static;text-align:left;margin-top:1.2em}
 }
 
