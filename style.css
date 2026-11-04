@@ -154,13 +154,29 @@
   --ease-travel:      cubic-bezier(.65, 0, .35, 1);   /* curve: soft start and landing (the travelling cross) */
 }
 
-/* PHONES (screens narrower than 820px) — these replace the values above */
-@media (max-width:820px){
+/* PHONES AND TABLETS (touch screens, or windows narrower than 820px) —
+   these replace the values above */
+:root{
+  --cross-size-phone:   32px;      /* every cross on phones / tablets */
+  --cross-weight-phone: .18;       /* their thickness, as a share of the size */
+  --phone-image-height: 60vh;      /* open project: the first image at most this tall */
+}
+@media (max-width:820px), (hover:none){
   :root{
     --mark-size:      clamp(28px, 9vw, 44px);
     --list-size:      clamp(17px, 5vw, 26px);
     --nav-size:       20px;
+    --tag-size:       16px;
     --margin-left:    var(--unit);
+    --cross-size:     var(--cross-size-phone);
+    --cross-weight:   var(--cross-weight-phone);
+    --meta-size:      clamp(13px, 3.6vw, 18px);
+    --desc-size:      clamp(14px, 3.9vw, 19px);
+    /* the image shown by the scanning cross: bottom right */
+    --hover-img-left:   38vw;
+    --hover-img-width:  58vw;
+    --hover-img-height: 34vh;
+    --hover-img-top:    60vh;
   }
 }
 
@@ -686,20 +702,54 @@ body.is-ready #loader{opacity:0;pointer-events:none}
    5 · Phones, touch screens, reduced motion
    ========================================================================== */
 
-@media (max-width:820px){
-  #filters{
-    position:static;
-    writing-mode:horizontal-tb;
-    flex-wrap:wrap;
-    padding:0 var(--unit) calc(var(--unit) * 1.2);
-  }
-  #filters:not([hidden]){display:flex}
-  #view-projects,#view-info{padding-top:calc(var(--unit) * 6)}
-  #project-list{text-align:left}
-  .frame-body{grid-template-columns:1fr}
-  #frame{height:auto}
+@media (max-width:820px), (hover:none){
+  /* brand: the text takes the full width */
+  #brand{width:calc(100vw - var(--margin-left) - var(--margin-right))}
+}
+/* tablets held horizontally: the brand keeps its desktop width */
+@media (hover:none) and (orientation:landscape) and (min-width:821px){
+  #brand{width:var(--brand-width)}
+}
+@media (max-width:820px), (hover:none){
+
+  /* open project: one scrolling column — title, first image, text, details */
+  #project-layer{overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
+  #project-layer{clip-path:inset(calc(var(--mark-size) * var(--mark-leading) + var(--gap-below-lab) / 2) 0 0 0)}   /* scrolling text stays under LAB / DE, never behind them */
+  #project-layer .detail-title{order:-1;margin:0 0 var(--title-gap);z-index:1;text-align:left}   /* order changes painting: keep it above the white */
+  #project-layer #frame{flex:none;height:auto}
+  .frame-body{grid-template-columns:1fr;grid-template-rows:none;height:auto}
   .stack,.detail-text,.meta{grid-column:auto;grid-row:auto}
+  .stack{height:auto}
+  .stack img.main,.stack video.main{max-height:var(--phone-image-height)}
+  .detail-text{overflow:visible}
   .meta{position:static;text-align:left;margin-top:1.2em}
+  #project-list{text-align:left}
+}
+/* the closing cross of an open project, bottom right */
+#close-x{display:none}
+@media (max-width:820px), (hover:none){
+  body.project-view #close-x{
+    display:block;position:fixed;z-index:85;
+    right:var(--unit);bottom:var(--unit);
+    width:calc(var(--cross-size) * .8);height:calc(var(--cross-size) * .8);
+    padding:0;
+  }
+  #close-x svg{width:100%;height:100%;overflow:visible;transform:rotate(45deg)}
+  #close-x line{stroke:var(--ink);stroke-width:calc(var(--cross-weight) * 40)}
+}
+
+/* touch screens: a still cross, centre right, stands in for the cursor —
+   the project (or name) passing under it shows its image */
+#scan{display:none}
+@media (hover:none){
+  body:is([data-view="projects"],[data-view="info"]):not(.project-open) #scan{
+    display:block;position:fixed;z-index:70;pointer-events:none;
+    right:var(--unit);top:50%;
+    width:calc(var(--cross-size) * .8);height:calc(var(--cross-size) * .8);
+    transform:translateY(-50%);
+  }
+  #scan svg{width:100%;height:100%;overflow:visible}
+  #scan line{stroke:var(--ink);stroke-width:calc(var(--cross-weight) * 40)}
 }
 
 @media (hover:none){

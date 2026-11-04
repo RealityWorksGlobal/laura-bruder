@@ -1186,6 +1186,37 @@ document.addEventListener('click', e => {
   document.addEventListener('pointercancel', end);
 })();
 
+/* ── touch screens: the scanning cross ─────────────────────────────────
+   No hover on a phone: a still cross sits centre right, and whatever project
+   (or the name, on info) passes under it while scrolling shows its image. */
+const TOUCH = matchMedia('(hover:none)');
+let scanQueued = false;
+function scanUpdate() {
+  scanQueued = false;
+  if (!TOUCH.matches || state.openId || state.busy) return;
+  const sc = $('#scan');
+  if (!sc || sc.offsetParent === null && getComputedStyle(sc).position !== 'fixed') return;
+  const r = sc.getBoundingClientRect();
+  if (!r.height) return;
+  const y = r.top + r.height / 2;
+  let path = '';
+  if (state.view === 'projects') {
+    const li = $$('#project-list li').find(l => { const b = l.getBoundingClientRect(); return b.top <= y && b.bottom >= y; });
+    const p = li && state.data.projects.find(x => x.id === li.dataset.id);
+    path = (p && p.hover) || '';
+  } else if (state.view === 'info') {
+    const hit = $$('.portrait-name').some(n => [...n.getClientRects()].some(b => b.top <= y && b.bottom >= y));
+    path = hit ? portraitPath() : '';
+  }
+  if (path) popOn(path); else popOff();
+}
+const scanSoon = () => { if (!scanQueued) { scanQueued = true; requestAnimationFrame(scanUpdate); } };
+addEventListener('scroll', scanSoon, { passive: true });
+addEventListener('resize', scanSoon);
+
+/* the closing cross of an open project (phones and tablets) */
+$('#close-x').addEventListener('click', e => { e.stopPropagation(); closeProjectAnimated(); });
+
 /* ── info ──────────────────────────────────────────────────────────────── */
 
 /** One column pair of the info tab, read top to bottom: the first non-empty
@@ -1465,6 +1496,7 @@ function render() {
   syncChrome();
   requestAnimationFrame(refreshLab);      // LAB always flies to its next place
   requestAnimationFrame(fillLoop);        // the endless list fills once it is shown
+  setTimeout(scanSoon, 400);              // touch: what is under the scanning cross
   setTimeout(refreshLab, 680);   // again once the entry animation has settled
 }
 
