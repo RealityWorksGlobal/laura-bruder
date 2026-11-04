@@ -1214,8 +1214,12 @@ const scanSoon = () => { if (!scanQueued) { scanQueued = true; requestAnimationF
 addEventListener('scroll', scanSoon, { passive: true });
 addEventListener('resize', scanSoon);
 
-/* the closing cross of an open project (phones and tablets) */
-$('#close-x').addEventListener('click', e => { e.stopPropagation(); closeProjectAnimated(); });
+/* phones / tablets: the scanning cross is also the closing cross */
+$('#scan').addEventListener('click', e => {
+  e.stopPropagation();
+  if (state.openId) closeProjectAnimated();          // open project → the list
+  else if (state.view === 'info') go('#/projects');  // info → the list
+});
 
 /* ── info ──────────────────────────────────────────────────────────────── */
 
