@@ -52,22 +52,22 @@
   --list-size:        var(--main-size);   /* project list only (own size on phones) */
   --main-weight:      400;
   --info-head-weight: 400;       /* info categories: 700 = bold */
-  --info-head-style:  italic;    /* info categories: italic  or  normal */
+  --info-head-style:  normal;    /* info categories: italic  or  normal */
   --id-weight:        400;       /* the IDs (2607 BIR): 700 = bold */
   --id-style:         italic;    /* the IDs: italic  or  normal */
   --list-leading:     1.4;       /* line height: project list, info categories */
   --text-leading:     1.3;       /* line height: landing sentence, info texts */
   --list-tracking:    -.015em;   /* letter spacing: project list, info categories */
   --text-tracking:    0;         /* letter spacing: landing sentence, info texts */
-  --text-align:       justify;   /* justify  or  left */
+  --text-align:       left;   /* justify  or  left */
 
   /* PROJECT DESCRIPTION — the text inside an open project */
   --desc-size:        clamp(15px, 1.55vw, 28px);
   --desc-leading:     1.35;
 
   /* PROJECT DETAILS — status · collaboration · place · client · credits */
-  --meta-size:        clamp(22px, .7vw, 46px);
-  --meta-leading:     1.3;
+  --meta-size:        var(--desc-size);      /* same as the description */
+  --meta-leading:     var(--desc-leading);
 
   /* NAVIGATION — PROJECTS  INFO  DE (serif) */
   --nav-size:         clamp(17px, 1.85vw, 36px);
@@ -100,6 +100,7 @@
   --unit:             clamp(14px, 1.5vw, 30px);   /* base spacing step — many gaps are multiples of it */
   --margin-left:      calc(var(--unit) * 3.4);    /* page margin, left */
   --margin-right:     var(--unit);                /* page margin, right */
+  --right-indent:     20vw;      /* extra margin from the right edge, for chosen elements (now: text inside the info categories) */
   --gap-below-lab:    calc(var(--unit) * 1.4);    /* LAB → first line of the list / info */
   --row-gap:          .52em;     /* space between two projects, between two info categories */
   --space-at-end:     30vh;      /* empty space after the last project */
@@ -170,7 +171,7 @@
     --margin-left:    var(--unit);
     --cross-size:     var(--cross-size-phone);
     --cross-weight:   var(--cross-weight-phone);
-    --meta-size:      clamp(13px, 3.6vw, 18px);
+    --right-indent:   0px;       /* phones: no extra right margin */
     --desc-size:      clamp(12px, 3.3vw, 15px);   /* project description, smaller on phones */
     /* the image shown by the scanning cross: bottom right */
     --hover-img-left:   38vw;
@@ -667,7 +668,7 @@ body.gate-on #chrome{opacity:0}
 
 .acc-body{overflow:hidden;max-height:0;transition:max-height var(--slow) var(--ease)}
 .acc-item.is-open .acc-body{max-height:4000px}
-.acc-text{font-size:var(--info-body-size)}   /* own box, so the indent stays the heads' */
+.acc-text{font-size:var(--info-body-size);padding-right:var(--right-indent)}   /* own box, so the indent stays the heads' */
 .acc-body-inner{
   padding:.1em 0 var(--info-para-gap) calc(var(--cross-x) + var(--hang));
   line-height:var(--text-leading);

@@ -1278,8 +1278,8 @@ function renderInfo() {
     { k: 'bio',     ...infoPair('bio'), portrait: a.portrait },
     { k: 'works',   ...infoPair('works') },
     { k: 'network', ...infoPair('network'), extra: collabs ? `<ul>${collabs}</ul>` : '' },
-    { k: 'contact', ...infoPair('contact') },
-    { k: 'write',   ...write }
+    { k: 'contact', ...infoPair('contact') }
+    // WRITE US removed (Nov 12); to bring it back: { k: 'write', ...write }
   ].filter(s => s.title);
 
   $('#accordion').innerHTML = sections.map(s => {
