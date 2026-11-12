@@ -466,13 +466,7 @@ function stopRotation() {
   rotation.timer = rotation.front = null;
 }
 
-// the brand layer sits on top of the plates, so test the pointer by position
-addEventListener('pointermove', e => {
-  if (state.view !== 'splash' || brandOpen) { rotation.paused = false; return; }
-  const r = $('#splash-inner').getBoundingClientRect();
-  rotation.paused = e.clientX >= r.left && e.clientX <= r.right &&
-                    e.clientY >= r.top && e.clientY <= r.bottom;
-}, { passive: true });
+// (the pause while the mouse stays on the front image was removed — Nov 12)
 
 /** Inner frame keeps its centre, takes the format of whatever it holds. */
 function fitInner(el, path) {
@@ -530,23 +524,23 @@ function markBrandSeen() {
 /* Brand text: its first line sits on the baseline of LAB, beside it; from the
    second line on it runs full width under LAB. Measured, so it follows any
    size parameter. */
+/* Brand: the top of LAB's letters is level with the top of the first text
+   line's letters (cap heights measured in each font). */
+const capCanvas = document.createElement('canvas').getContext('2d');
+function capHeight(el) {
+  const cs = getComputedStyle(el);
+  capCanvas.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return capCanvas.measureText('H').actualBoundingBoxAscent;
+}
 function alignBrand() {
-  const st = $('#brand .statement'), anchor = $('#brand .lab-anchor');
+  const anchor = $('#brand .lab-anchor'), st = $('#brand .statement');
   const [bLab, bText] = $$('#brand .bl');
-  if (!st || !bLab || !bText || st.offsetParent === null) return;
-  st.style.paddingTop = anchor.style.marginTop = anchor.style.marginBottom = '';
-  // layout offsets, not screen rects: immune to the opening animation's transforms
+  if (!anchor || !bLab || !bText || anchor.offsetParent === null) return;
+  anchor.style.top = '0px';
   const abs = el => { let y = 0; for (; el; el = el.offsetParent) y += el.offsetTop; return y; };
-  const top = el => abs(el) - abs(st);                    // relative to the paragraph
-  const d = top(bLab) - top(bText);
-  if (d <= 0) return;
-  st.style.paddingTop = d + 'px';
-  anchor.style.marginTop = -d + 'px';                     // LAB stays put
-  // LAB ends with the first text line, so the second line runs full width
-  const lineH = parseFloat(getComputedStyle(st).lineHeight) || 0;
-  const firstLineBottom = d + lineH;
-  const labBottom = top(anchor) + anchor.offsetHeight;
-  anchor.style.marginBottom = (firstLineBottom - labBottom - 1) + 'px';
+  const textTop = abs(bText) - capHeight(st);       // top of the first line's capitals
+  const labTop  = abs(bLab) - capHeight(anchor);    // top of LAB's letters, with top 0
+  anchor.style.top = (textTop - labTop) + 'px';
   refreshLab();
 }
 addEventListener('resize', alignBrand);
@@ -787,9 +781,7 @@ async function handoff() {
   if (state.busy) return;
   state.busy = true;
   $('#view-splash').classList.add('is-exiting');
-  brand.classList.add('is-closed');          // angles → one cross at the centre
-  await wait(T.move);
-  brand.classList.add('is-shrunk');          // cross → a point
+  brand.classList.add('is-shrunk', 'is-closed');   // the text goes; LAB flies up with the list
   await wait(T.line);
   state.busy = false;
   go('#/projects');
@@ -1275,7 +1267,7 @@ function renderInfo() {
   const write = infoPair('write').title ? infoPair('write') : infoPair('contact', '_1');
 
   const sections = [
-    { k: 'bio',     ...infoPair('bio'), portrait: a.portrait },
+    { k: 'bio',     ...infoPair('bio') },
     { k: 'works',   ...infoPair('works') },
     { k: 'network', ...infoPair('network'), extra: collabs ? `<ul>${collabs}</ul>` : '' },
     { k: 'contact', ...infoPair('contact') }
@@ -1293,7 +1285,7 @@ function renderInfo() {
     return `
     <div class="acc-item" data-acc="${s.k}">
       <div class="acc-head" role="button" tabindex="0" data-clickable
-           ${s.portrait ? `data-portrait="${s.portrait}"` : ''}>
+           >
         ${PLUS_SVG}<span>${escapeHTML(s.title)}</span>
       </div>
       <div class="acc-body"><div class="acc-body-inner"><div class="acc-text">${linkify(s.body)}${s.extra || ''}</div></div></div>
@@ -1316,6 +1308,7 @@ function portraitPath() {
 function markPortraitName() {
   const path = portraitPath();
   if (!path) return;
+  // only the letters of the name react (title included) — never the rest of the line
   const walker = document.createTreeWalker($('#view-info'), NodeFilter.SHOW_TEXT);
   const hits = [];
   for (let n; (n = walker.nextNode());) if (/laura bruder/i.test(n.nodeValue)) hits.push(n);
@@ -1344,23 +1337,29 @@ $('#accordion').addEventListener('keydown', e => {
     e.target.closest('.acc-item').classList.toggle('is-open');
   }
 });
-// her portrait follows the same rule as the project images: hover only
-$('#accordion').addEventListener('pointerover', e => {
-  const head = e.target.closest('.acc-head[data-portrait]');
-  if (head) popOn(head.dataset.portrait);
-});
-$('#accordion').addEventListener('pointerout', e => {
-  if (e.target.closest('.acc-head[data-portrait]')) popOff();
-});
+// (the old portrait on the whole bio line was removed: only the name in the text shows it)
 
 /* ── chrome ────────────────────────────────────────────────────────────── */
 
 /** The tags keep the navigation size when they fit between LAB and the
     bottom edge; on a short window they shrink just enough to stay below LAB. */
+/* --tags-place: top → the tags join the navigation; left → the vertical rail */
+function placeTags() {
+  const top = cssVar('--tags-place').trim() === 'top';
+  document.body.classList.toggle('tags-top', top);
+  const tags = $('#filters'), nav = $('#nav-main');
+  if (!tags || !nav) return;
+  if (top && tags.parentElement !== nav) nav.prepend(tags);
+  if (!top && tags.parentElement === nav) $('#chrome').appendChild(tags);
+}
+addEventListener('resize', placeTags);
+
 function fitRail() {
+  placeTags();
   const nav = $('#filters');
   if (!nav || nav.hidden) return;
   nav.style.fontSize = '';
+  if (document.body.classList.contains('tags-top')) { alignEdges(); return; }
   // room = from the first line of text (just under LAB) to the bottom edge
   const avail = innerHeight - parseFloat(getComputedStyle($('#view-projects')).paddingTop);
   const h = nav.getBoundingClientRect().height;
@@ -1388,7 +1387,8 @@ function alignEdges() {
   const de = $('#lang'), nav = $('#nav-main');
   if (de && nav) nav.style.right = (gap - trailingSpace(de)) + 'px';
   const rail = $('#filters'), last = rail && !rail.hidden && $$('#filters .filter').pop();
-  if (last) rail.style.bottom = (gap - trailingSpace(last)) + 'px';
+  if (rail) rail.style.bottom = '';
+  if (last && !document.body.classList.contains('tags-top')) rail.style.bottom = (gap - trailingSpace(last)) + 'px';
 }
 addEventListener('resize', alignEdges);
 document.fonts && document.fonts.ready.then(alignEdges);
