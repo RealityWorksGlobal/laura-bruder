@@ -91,9 +91,9 @@
      One cross everywhere: cursor, project list, info page, frame corners.  */
   --cross-size:       60px;     /* size of the whole cross — try 90px or 130px */
   --cross-weight:     .18;       /* bar thickness as a share of the size: .161 = 16%, .1 = thin */
-  --empty-cross:      dotted;    /* projects without a page: dotted (a dotted outline)  or  outline */
+  --empty-cross:      outline;   /* projects without a page: dotted (a dotted outline)  or  outline */
   --dot-size:         .03;       /* dotted outline: size of a dot, as a share of the cross size */
-  --dot-gap:          1.6;       /* dotted outline: distance between dots (bigger = fewer dots) */
+  --dot-gap:          3;         /* dotted outline: distance between dots (bigger = fewer dots) */
   --cross-outline:    .02;       /* projects without a page: outline thickness, as a share of the size (.04 = thicker) */
   --wrap-hang:        0;         /* project list: wrapped lines start under the cross (0) or under the ID (1) */
   --cross-gap:        .32em;     /* space between a cross and the text after it */
