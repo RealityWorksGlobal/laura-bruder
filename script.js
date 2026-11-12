@@ -686,7 +686,17 @@ const OUTLINE_SVG = PLUS_SVG.replace('</svg>',
   '<line class="hollow" x1="0" y1="0" x2="0"   y2="-14" pathLength="1"/>' +
   '<line class="hollow" x1="0" y1="0" x2="-14" y2="0"   pathLength="1"/>' +
   '<line class="hollow" x1="0" y1="0" x2="0"   y2="14"  pathLength="1"/>' +
-  '<line class="hollow" x1="0" y1="0" x2="14"  y2="0"   pathLength="1"/></svg>');
+  '<line class="hollow" x1="0" y1="0" x2="14"  y2="0"   pathLength="1"/>' +
+  '</svg>');
+
+/* the dotted outline: the cross's contour, drawn as dots (its thickness
+   follows --cross-weight; dots: --dot-size, --dot-gap) */
+function emptyCross() {
+  const h = (parseFloat(cssVar('--cross-weight')) || .18) * 20, e = 14;
+  const pts = [[-h,-e],[h,-e],[h,-h],[e,-h],[e,h],[h,h],[h,e],[-h,e],[-h,h],[-e,h],[-e,-h],[-h,-h]]
+    .map(p => p.join(',')).join(' ');
+  return OUTLINE_SVG.replace('</svg>', `<polygon class="dotline" points="${pts}"/></svg>`);
+}
 
 /* Endless list: once the end comes near, the whole list follows again —
    no break between rounds. Each round is marked so lines stay distinct. */
@@ -723,7 +733,7 @@ function appendRound() {
       a.href = `#/projects/${encodeURIComponent(p.id)}`;
       a.dataset.clickable = '';
     }
-    a.innerHTML = (p.hasPage ? PLUS_SVG : OUTLINE_SVG) +
+    a.innerHTML = (p.hasPage ? PLUS_SVG : emptyCross()) +
       `<span class="code">${p.date} ${p.ref}</span> ` +
       `${escapeHTML(t(p, 'description'))}`;
 
@@ -1344,6 +1354,12 @@ $('#accordion').addEventListener('keydown', e => {
 /** The tags keep the navigation size when they fit between LAB and the
     bottom edge; on a short window they shrink just enough to stay below LAB. */
 /* --tags-place: top → the tags join the navigation; left → the vertical rail */
+function emptyCrossStyle() {
+  document.body.classList.toggle('empty-outline', cssVar('--empty-cross').trim() === 'outline');
+}
+emptyCrossStyle();
+addEventListener('resize', emptyCrossStyle);
+
 function placeTags() {
   const top = cssVar('--tags-place').trim() === 'top';
   document.body.classList.toggle('tags-top', top);

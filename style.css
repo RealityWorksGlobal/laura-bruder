@@ -91,6 +91,9 @@
      One cross everywhere: cursor, project list, info page, frame corners.  */
   --cross-size:       60px;     /* size of the whole cross — try 90px or 130px */
   --cross-weight:     .18;       /* bar thickness as a share of the size: .161 = 16%, .1 = thin */
+  --empty-cross:      dotted;    /* projects without a page: dotted (a dotted outline)  or  outline */
+  --dot-size:         .03;       /* dotted outline: size of a dot, as a share of the cross size */
+  --dot-gap:          1.6;       /* dotted outline: distance between dots (bigger = fewer dots) */
   --cross-outline:    .02;       /* projects without a page: outline thickness, as a share of the size (.04 = thicker) */
   --wrap-hang:        0;         /* project list: wrapped lines start under the cross (0) or under the ID (1) */
   --cross-gap:        .32em;     /* space between a cross and the text after it */
@@ -519,10 +522,19 @@ body[data-view="splash"]:not(.brand-open) #chrome{opacity:0;pointer-events:none;
 .plus.is-shrunk line{stroke-dashoffset:1}
 @keyframes grow{from{stroke-dashoffset:1}}
 .plus.is-growing line{animation:grow var(--line) var(--ease) backwards}
-.plus line.hollow{
+/* projects without a page: --empty-cross: dotted (now) or outline */
+body.empty-outline .plus line.hollow{
   stroke:var(--paper);
   stroke-width:calc((var(--cross-weight) - 2 * var(--cross-outline)) * 40);
   stroke-dasharray:calc(1 - var(--cross-outline) * 40 / 14) 1;
+}
+body:not(.empty-outline) .plus line.hollow{display:none}
+.plus .dotline{display:none}
+body:not(.empty-outline) .entry.no-plus .plus:has(.dotline) line{display:none}   /* only if the dots are there */
+body:not(.empty-outline) .entry.no-plus .plus .dotline{
+  display:inline;fill:none;stroke:var(--ink);
+  stroke-width:calc(var(--dot-size) * 40);
+  stroke-linecap:round;stroke-dasharray:0 var(--dot-gap);
 }
 
 /* the hover image */
