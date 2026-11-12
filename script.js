@@ -1359,7 +1359,19 @@ function fitRail() {
   const nav = $('#filters');
   if (!nav || nav.hidden) return;
   nav.style.fontSize = '';
-  if (document.body.classList.contains('tags-top')) { alignEdges(); return; }
+  if (document.body.classList.contains('tags-top')) {
+    // the tags shrink (only they) so the navigation never comes closer to LAB
+    // than --lab-clearance
+    alignEdges();
+    const min = parseFloat(cssVar('--lab-clearance')) || 40;
+    const room = $('#nav-main').getBoundingClientRect().left - lab.getBoundingClientRect().right;
+    if (room < min) {
+      const w = nav.getBoundingClientRect().width;
+      const fs = parseFloat(getComputedStyle(nav).fontSize);
+      nav.style.fontSize = Math.max(8, fs * (w - (min - room)) / w) + 'px';
+    }
+    return;
+  }
   // room = from the first line of text (just under LAB) to the bottom edge
   const avail = innerHeight - parseFloat(getComputedStyle($('#view-projects')).paddingTop);
   const h = nav.getBoundingClientRect().height;
@@ -1367,6 +1379,7 @@ function fitRail() {
   alignEdges();
 }
 addEventListener('resize', () => fitRail());
+document.fonts && document.fonts.ready.then(() => fitRail());   // measured again with the real fonts
 
 /* DE (right edge) and the last tag (bottom edge) sit at the same distance,
    --edge-gap, measured on the letters themselves: the empty space a font

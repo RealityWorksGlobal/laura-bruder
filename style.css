@@ -78,6 +78,7 @@
 
   /* TAGS — vertical on the left, last letter on the bottom edge.
      On short windows they shrink by themselves so they never reach LAB. */
+  --lab-clearance:    48px;      /* tags at the top: smallest distance between LAB and the first tag (the tags shrink to keep it) */
   --tags-place:       top;       /* tags: top (in the navigation, before PROJECTS — same size, not bold) or left (vertical rail) */
   --tag-size:         clamp(17px, 1.85vw, 26px);   /* rail only: separate from the navigation */
   --rail-weight:      400;       /* 700 = bold */
