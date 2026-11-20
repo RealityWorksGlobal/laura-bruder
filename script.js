@@ -329,7 +329,9 @@ function normaliseProject(r) {
     // a page exists if there is anything to show on it
     // `clickable` decides when the column exists; otherwise: anything to show
     hasPage: (r.clickable === undefined || r.clickable === '' ? true : yes(r.clickable)) &&
-             !!(images.length || r.content || r.content_en || r.content_de)
+             !!(images.length || r.content || r.content_en || r.content_de),
+    // a web address in `clickable`: the line opens that address in a new tab
+    url: /^https?:\/\//i.test(String(r.clickable || '').trim()) ? String(r.clickable).trim() : ''
   };
 }
 
@@ -352,9 +354,19 @@ const cursor = (() => {
       const drop = target.closest('#drops img, #drops video');
       if (drop) return inCloseZone(drop, x, y) ? 'is-close' : '';   // its corner closes it, the rest drags
       const inside = frame && !frame.hidden && frame.contains(target);
+      // over a description that can still scroll down: an arrow pointing down
+      const txt = target.closest('.detail-text');
+      if (txt && txt.scrollHeight - txt.scrollTop - txt.clientHeight > 2) return 'is-arrow-down';
       return inside ? '' : 'is-close';          // outside an open project closes it
     }
     if (state.view === 'splash') return '';     // the splash keeps a plain plus
+    if (target.closest('a[data-url]')) return 'is-arrow-right';   // opens a web address
+    // info: on an opened category whose text continues below the screen
+    if (state.view === 'info') {
+      const item = target.closest('.acc-item.is-open');
+      if (item && !target.closest('.acc-head, .legal-head, a') &&
+          item.getBoundingClientRect().bottom > innerHeight + 2) return 'is-arrow-down';
+    }
     return target.closest(OPENS) ? 'is-apart' : '';
   }
 
@@ -364,13 +376,23 @@ const cursor = (() => {
     x = e.clientX; y = e.clientY;
     draw();
 
-    const next = modeAt(e.target);
-    if (next !== mode) {
-      el.classList.remove('is-apart', 'is-close');
-      if (next) el.classList.add(next);
-      mode = next;
-    }
+    last = e.target;
+    setMode(modeAt(e.target));
   }, { passive: true });
+  let last = null;
+  function setMode(next) {
+    if (next === mode) return;
+    el.classList.remove('is-apart', 'is-close', 'is-arrow-right', 'is-arrow-down');
+    if (next) el.classList.add(next);
+    mode = next;
+  }
+  // after any scroll (page or description), what is under the cursor again —
+  // at the end of a text the arrow turns back into the cross
+  document.addEventListener('scroll', () => {
+    if (!last) return;
+    const t = document.elementFromPoint(x, y) || last;
+    setMode(modeAt(t));
+  }, { passive: true, capture: true });
 
   return {
     at() { return { x, y }; },
@@ -750,8 +772,12 @@ function appendRound() {
     li.dataset.id = p.id;
     li.dataset.round = round;
 
-    const a = document.createElement(p.hasPage ? 'a' : 'span');
+    const a = document.createElement(p.hasPage || p.url ? 'a' : 'span');
     a.className = 'entry' + (p.hasPage ? '' : ' no-plus');
+    if (!p.hasPage && p.url) {                     // opens its web address (cross unchanged)
+      a.href = p.url; a.target = '_blank'; a.rel = 'noopener';
+      a.dataset.url = '';
+    }
     if (p.hasPage) {
       a.href = `#/projects/${encodeURIComponent(p.id)}`;
       a.dataset.clickable = '';
@@ -1030,6 +1056,7 @@ async function openProject(id) {
   await wait(T.move);
 
   view.classList.add('is-open');               // 4 · only the project remains
+  setTimeout(scanDown, 50);
   title.style.visibility = '';                 // the line has become the title
   state.line?.remove(); state.line = null;
   state.busy = false;
@@ -1076,6 +1103,7 @@ async function closeProjectAnimated() {
 
 /** Immediate close — used when navigating away. */
 function closeProject() {
+  document.body.classList.remove('scan-down');
   if (!state.openId) return;
   state.openId = null;
   const frame = $('#frame'), drops = $('#drops');
@@ -1239,6 +1267,7 @@ function scanUpdate() {
     const li = $$('#project-list li').find(l => { const b = l.getBoundingClientRect(); return b.top <= y && b.bottom >= y; });
     const p = li && state.data.projects.find(x => x.id === li.dataset.id);
     path = (p && p.hover) || '';
+    document.body.classList.toggle('scan-arrow', !!(p && !p.hasPage && p.url));   // a web address: the cross points right
   } else if (state.view === 'info') {
     const hit = $$('.portrait-name').some(n => [...n.getClientRects()].some(b => b.top <= y && b.bottom >= y));
     path = hit ? portraitPath() : '';
@@ -1249,9 +1278,25 @@ const scanSoon = () => { if (!scanQueued) { scanQueued = true; requestAnimationF
 addEventListener('scroll', scanSoon, { passive: true });
 addEventListener('resize', scanSoon);
 
+/* phones / tablets: on an open project the cross shows ↓ while there is more
+   below (a tap scrolls on), and × at the end (a tap closes) */
+function scanDown() {
+  const l = $('#project-layer');
+  const more = !!state.openId && l && l.scrollHeight - l.scrollTop - l.clientHeight > 4;
+  document.body.classList.toggle('scan-down', more);
+  return more;
+}
+$('#project-layer').addEventListener('scroll', scanDown, { passive: true });
+addEventListener('resize', scanDown);
+
 /* phones / tablets: the scanning cross is also the closing cross */
 $('#scan').addEventListener('click', e => {
   e.stopPropagation();
+  if (state.openId && scanDown()) {                  // more below → scroll on
+    const l = $('#project-layer');
+    l.scrollBy({ top: l.clientHeight * .8, behavior: 'smooth' });
+    return;
+  }
   if (state.openId) closeProjectAnimated();          // open project → the list
   else if (state.view === 'info') go('#/projects');  // info → the list
 });
@@ -1277,10 +1322,16 @@ function legalParts() {
   return ['impressum', 'datenschutz', 'bildnachweis'].map(k => {
     const p = infoPair(k);
     if (!p.title && !p.body) return '';
-    return `<div class="legal-part"><div class="legal-head" role="button" tabindex="0" data-clickable>${escapeHTML(p.title)}</div>` +
+    return `<div class="legal-part"><div class="legal-head" role="button" tabindex="0" data-clickable>${ARROW_SVG}${escapeHTML(p.title)}</div>` +
            `<div class="legal-body">${linkify(p.body)}</div></div>`;
-  }).join('');
+  }).join('') +
+  // the website's own credit, under the three parts
+  `<div class="site-credit">Website by <a href="mailto:studio@juliettemartin.org" data-url>Juliette Martin</a>` +
+  ` for <a href="mailto:jm@realityworks.global" data-url>Reality Works</a></div>`;
 }
+/* the arrow (two arms of the cross): points right when closed, down when open */
+const ARROW_SVG = '<svg class="arrow" viewBox="-16 -16 32 32" aria-hidden="true">' +
+  '<line x1="0" y1="0" x2="0" y2="-14"/><line x1="0" y1="0" x2="-14" y2="0"/><rect class="knot"/></svg>';
 
 /** Plain text in, with emails and URLs made clickable. */
 /** Info texts, line by line:

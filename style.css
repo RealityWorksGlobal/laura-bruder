@@ -252,6 +252,14 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0}
 #cursor.is-apart .knot-nw{transform:translate(var(--hover-open),var(--hover-open))}
 #cursor.is-apart .knot-se{transform:translate(calc(-1 * var(--hover-open)),calc(-1 * var(--hover-open)))}
 
+/* the arrow: two neighbouring arms stay (up and left), the other two shrink
+   into the centre, and the pair turns to point — right: opens a web address;
+   down: the text can scroll further */
+#cursor.is-arrow-right .arm-e,#cursor.is-arrow-down .arm-e{transform:scaleX(0)}
+#cursor.is-arrow-right .arm-s,#cursor.is-arrow-down .arm-s{transform:scaleY(0)}
+#cursor.is-arrow-right #cursor-arms{transform:rotate(-45deg)}
+#cursor.is-arrow-down #cursor-arms{transform:rotate(45deg)}
+
 /* outside an open project, a click closes it */
 #cursor.is-close #cursor-arms{transform:rotate(45deg)}
 #cursor.is-hidden,
@@ -361,6 +369,8 @@ body.tags-top #filters{
   padding:calc(var(--mark-size) * var(--mark-leading) + var(--gap-below-lab))
           var(--margin-right) var(--space-at-end) var(--margin-left);
 }
+/* info scrolls only when its content is longer than the screen */
+#view-info{padding-bottom:var(--unit)}
 /* info: the intro starts at the same height as the project list */
 #view-info{padding-top:calc(var(--mark-size) * var(--mark-leading) + var(--gap-below-lab) + var(--main-size) * (var(--list-leading) - var(--text-leading)) / 2 + var(--info-text-shift))}
 
@@ -730,9 +740,18 @@ body.gate-on #chrome{opacity:0}
 .acc-body-inner li{margin:0 0 .28em}
 .acc-body-inner a{text-decoration:none}
 /* IMPRESSUM: its sub-categories (Impressum, Datenschutz, Bildnachweis),
-   each opening by itself — the heading in italic */
+   each opening by itself — an arrow in front of each heading */
 .legal-part{margin:0 0 .3em;white-space:normal}
-.legal-head{font-style:italic;cursor:pointer;white-space:pre-line}
+.legal-head{cursor:pointer;white-space:pre-line}
+/* the small arrow in front: → closed, ↓ open */
+.legal-head .arrow{
+  width:1em;height:1em;margin:0 .3em 0 0;vertical-align:-.15em;overflow:visible;
+  transform:rotate(-45deg);transition:transform var(--mid) var(--ease);
+}
+.legal-head .arrow line{stroke:var(--ink);stroke-width:calc(var(--cross-weight) * 40)}
+.legal-head .arrow .knot{fill:var(--ink);x:calc(var(--cross-weight) * -20px);y:calc(var(--cross-weight) * -20px);width:calc(var(--cross-weight) * 40px);height:calc(var(--cross-weight) * 40px)}
+.legal-part.is-open .legal-head .arrow{transform:rotate(45deg)}
+.site-credit{margin-top:var(--info-para-gap)}
 .legal-body{display:none;white-space:pre-line;padding:.2em 0 var(--info-para-gap)}
 .legal-part.is-open .legal-body{display:block}
 
@@ -787,7 +806,15 @@ body.is-ready #loader{opacity:0;pointer-events:none}
     padding:0;background:none;border:0;
   }
   #scan svg{width:100%;height:100%;overflow:visible;transition:transform var(--mid) var(--ease)}
-  #scan line{stroke:var(--ink);stroke-width:calc(var(--cross-weight) * 40)}
+  #scan line{stroke:var(--ink);stroke-width:calc(var(--cross-weight) * 40);transform-origin:0 0;transition:transform var(--mid) var(--ease)}
+  #scan .knot{fill:var(--ink);x:calc(var(--cross-weight) * -20px);y:calc(var(--cross-weight) * -20px);width:calc(var(--cross-weight) * 40px);height:calc(var(--cross-weight) * 40px)}
+  /* a project that opens a web address passes under it: the cross points right */
+  body.scan-arrow[data-view="projects"]:not(.project-view) #scan .arm-e{transform:scaleX(0)}
+  body.scan-arrow[data-view="projects"]:not(.project-view) #scan .arm-s{transform:scaleY(0)}
+  body.scan-arrow[data-view="projects"]:not(.project-view) #scan svg{transform:rotate(-45deg)}
+  /* open project with more below: the cross points down */
+  body.project-view.scan-down #scan .arm-e{transform:scaleX(0)}
+  body.project-view.scan-down #scan .arm-s{transform:scaleY(0)}
   body.project-view #scan,
   body[data-view="info"] #scan{pointer-events:auto}
   body.project-view #scan svg,
