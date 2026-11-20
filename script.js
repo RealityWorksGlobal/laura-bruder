@@ -39,7 +39,7 @@ const DEFAULTS = {
   meta_collaboration:{ en: 'collaboration with', de: 'in Zusammenarbeit mit' },
   meta_place:        { en: 'place',              de: 'Ort' },
   meta_client:       { en: 'client',             de: 'Auftraggeber' },
-  meta_working_for:  { en: 'as architect at',    de: 'als Architektin bei' },
+  meta_working_for:  { en: 'working for',        de: 'angestellt bei' },
   meta_credits:      { en: 'image credits',      de: 'Bildnachweis' },
   acc_bio:           { en: 'LAURA BRUDER',       de: 'LAURA BRUDER' },
   acc_scope:         { en: 'SCOPE',              de: 'LEISTUNGEN' },
@@ -1240,6 +1240,14 @@ function infoPair(base, dup = '') {
   return { title: vals[0] || '', body: vals[1] || '' };
 }
 
+function legalParts() {
+  return ['impressum', 'datenschutz', 'bildnachweis'].map(k => {
+    const p = infoPair(k);
+    if (!p.title && !p.body) return '';
+    return `<div class="legal-part"><span class="legal-head">${escapeHTML(p.title)}</span>\n${linkify(p.body)}</div>`;
+  }).join('');
+}
+
 /** Plain text in, with emails and URLs made clickable. */
 /** Info texts, line by line:
       "instagram https://…"  → the word, linked
@@ -1280,7 +1288,12 @@ function renderInfo() {
     { k: 'bio',     ...infoPair('bio') },
     { k: 'works',   ...infoPair('works') },
     { k: 'network', ...infoPair('network'), extra: collabs ? `<ul>${collabs}</ul>` : '' },
-    { k: 'contact', ...infoPair('contact') }
+    { k: 'contact', ...infoPair('contact') },
+    // legal: three categories of their own (sheet columns impressum_,
+    // datenschutz_, bildnachweis_ — row 1 = heading, row 2 = text)
+    { k: 'impressum',    ...infoPair('impressum') },
+    { k: 'datenschutz',  ...infoPair('datenschutz') },
+    { k: 'bildnachweis', ...infoPair('bildnachweis') }
     // WRITE US removed (Nov 12); to bring it back: { k: 'write', ...write }
   ].filter(s => s.title);
 
@@ -1355,7 +1368,8 @@ $('#accordion').addEventListener('keydown', e => {
     bottom edge; on a short window they shrink just enough to stay below LAB. */
 /* --tags-place: top → the tags join the navigation; left → the vertical rail */
 function emptyCrossStyle() {
-  document.body.classList.toggle('empty-outline', cssVar('--empty-cross').trim() === 'outline');
+  const v = cssVar('--empty-cross').trim() || 'outline';
+  ['thin', 'outline', 'dotted'].forEach(k => document.body.classList.toggle('empty-' + k, v === k));
 }
 emptyCrossStyle();
 addEventListener('resize', emptyCrossStyle);
