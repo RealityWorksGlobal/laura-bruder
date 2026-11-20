@@ -1244,7 +1244,8 @@ function legalParts() {
   return ['impressum', 'datenschutz', 'bildnachweis'].map(k => {
     const p = infoPair(k);
     if (!p.title && !p.body) return '';
-    return `<div class="legal-part"><span class="legal-head">${escapeHTML(p.title)}</span>\n${linkify(p.body)}</div>`;
+    return `<div class="legal-part"><div class="legal-head" role="button" tabindex="0" data-clickable>${escapeHTML(p.title)}</div>` +
+           `<div class="legal-body">${linkify(p.body)}</div></div>`;
   }).join('');
 }
 
@@ -1291,9 +1292,9 @@ function renderInfo() {
     { k: 'contact', ...infoPair('contact') },
     // legal: three categories of their own (sheet columns impressum_,
     // datenschutz_, bildnachweis_ — row 1 = heading, row 2 = text)
-    { k: 'impressum',    ...infoPair('impressum') },
-    { k: 'datenschutz',  ...infoPair('datenschutz') },
-    { k: 'bildnachweis', ...infoPair('bildnachweis') }
+    // IMPRESSUM: one category; Impressum, Datenschutz and Bildnachweis are
+    // its own sub-categories, each opening by itself
+    { k: 'legal', title: infoPair('impressum').title, body: '', extra: legalParts() }
     // WRITE US removed (Nov 12); to bring it back: { k: 'write', ...write }
   ].filter(s => s.title);
 
@@ -1351,6 +1352,8 @@ function markPortraitName() {
 }
 
 $('#accordion').addEventListener('click', e => {
+  const sub = e.target.closest('.legal-head');
+  if (sub) { sub.parentElement.classList.toggle('is-open'); return; }   // a sub-category of IMPRESSUM
   const head = e.target.closest('.acc-head');
   if (head && head.tagName !== 'A') head.parentElement.classList.toggle('is-open');
 });

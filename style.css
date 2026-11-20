@@ -721,10 +721,12 @@ body.gate-on #chrome{opacity:0}
 .acc-body-inner ul{margin:0;padding:0;list-style:none}
 .acc-body-inner li{margin:0 0 .28em}
 .acc-body-inner a{text-decoration:none}
-/* IMPRESSUM: its three parts, one after the other */
-.legal-part{margin:0 0 var(--info-para-gap)}
-.legal-part:last-child{margin-bottom:0}
-.legal-head{font-style:italic}
+/* IMPRESSUM: its sub-categories (Impressum, Datenschutz, Bildnachweis),
+   each opening by itself — the heading in italic */
+.legal-part{margin:0 0 .3em;white-space:normal}
+.legal-head{font-style:italic;cursor:pointer;white-space:pre-line}
+.legal-body{display:none;white-space:pre-line;padding:.2em 0 var(--info-para-gap)}
+.legal-part.is-open .legal-body{display:block}
 
 /* ==========================================================================
    4 · Loader
