@@ -1454,6 +1454,19 @@ $('#accordion').addEventListener('keydown', e => {
 /** The tags keep the navigation size when they fit between LAB and the
     bottom edge; on a short window they shrink just enough to stay below LAB. */
 /* --tags-place: top → the tags join the navigation; left → the vertical rail */
+/* the thin cross's line, as thick as the letters: the text size converted
+   into the cross's own drawing units (its 32 units = 0.8 × --cross-size) */
+function fontStroke() {
+  const li = $('#project-list li .entry');
+  if (!li) return;
+  const fs = parseFloat(getComputedStyle(li).fontSize);
+  const svg = li.querySelector('.plus svg');
+  const unit = svg ? svg.getBoundingClientRect().width / 32 : 0;
+  const share = parseFloat(cssVar('--font-stroke')) || .085;
+  if (unit) document.body.style.setProperty('--font-stroke-u', (fs * share / unit).toFixed(3));
+}
+addEventListener('resize', fontStroke);
+
 function emptyCrossStyle() {
   const v = cssVar('--empty-cross').trim() || 'outline';
   ['thin', 'outline', 'dotted'].forEach(k => document.body.classList.toggle('empty-' + k, v === k));
@@ -1630,6 +1643,7 @@ function render() {
   syncChrome();
   requestAnimationFrame(refreshLab);      // LAB always flies to its next place
   requestAnimationFrame(fillLoop);        // the endless list fills once it is shown
+  requestAnimationFrame(fontStroke);      // thin crosses as thick as the letters
   setTimeout(scanSoon, 400);              // touch: what is under the scanning cross
   setTimeout(refreshLab, 680);   // again once the entry animation has settled
 }

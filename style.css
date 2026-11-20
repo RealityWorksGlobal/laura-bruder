@@ -92,7 +92,8 @@
   --cross-size:       60px;     /* size of the whole cross — try 90px or 130px */
   --cross-weight:     .18;       /* bar thickness as a share of the size: .161 = 16%, .1 = thin */
   --empty-cross:      thin;      /* projects without a page: thin (two fine lines), outline  or  dotted */
-  --cross-thin:       .03;       /* thin: line thickness, as a share of the cross size */
+  --cross-thin:       .03;       /* (not used while the thin cross follows the font) */
+  --font-stroke:      .085;      /* thin cross: line thickness as a share of the text size — .085 ≈ a Helvetica letter stroke */
   --dot-size:         .03;       /* dotted outline: size of a dot, as a share of the cross size */
   --dot-gap:          3;         /* dotted outline: distance between dots (bigger = fewer dots) */
   --cross-outline:    .02;       /* projects without a page: outline thickness, as a share of the size (.04 = thicker) */
@@ -547,7 +548,10 @@ body.empty-outline .plus line.hollow{
 }
 body:not(.empty-outline) .plus line.hollow{display:none}
 /* thin: just two fine lines crossed */
-body:not(.empty-outline):not(.empty-dotted) .entry.no-plus .plus line{stroke-width:calc(var(--cross-thin) * 40)}   /* the default, works even without the script's class */
+body:not(.empty-outline):not(.empty-dotted) .entry.no-plus .plus line{
+  /* as thick as the letters of the list (--font-stroke × text size); same size as the other crosses */
+  stroke-width:var(--font-stroke-u, calc(var(--cross-thin) * 40));
+}   /* the default, works even without the script's class */
 /* dotted: the outline drawn as dots */
 .plus .dotline{display:none}
 body.empty-dotted .entry.no-plus .plus:has(.dotline) line{display:none}   /* only if the dots are there */
