@@ -129,10 +129,13 @@
 
   /* ── OPEN PROJECT ──────────────────────────────────────────────────── */
   --frame-pad:        calc(var(--unit) * 1.6);   /* corners ↔ content */
-  --frame-image-col:  46%;                        /* width of the main image column */
+  --frame-image-max:  50vw;                       /* main image: full height of the project page, but never wider than this */
   --frame-gap:        calc(var(--unit) * 1.8);   /* main image ↔ description */
   --title-gap:        calc(var(--unit) * .9);    /* frame ↔ title below it */
-  --drop-width:       clamp(300px, 38vw, 760px); /* width of the images added by clicking */
+  /* images on a project page: all get about the same surface, whatever their shape */
+  --image-size:       clamp(240px, 26vw, 560px); /* side of a square with the same surface (bigger = all images bigger) */
+  --image-max-h:      78vh;      /* no image taller than this */
+  --image-max-w:      70vw;      /* no image wider than this */
   --list-dim:         1;         /* the list while a project opens: 1 = unchanged, .2 = grey, 0 = hidden */
 
   /* the image that appears when hovering a project line */
@@ -165,6 +168,8 @@
   --cross-size-phone:   32px;      /* every cross on phones / tablets */
   --cross-weight-phone: .18;       /* their thickness, as a share of the size */
   --phone-image-height: 60vh;      /* open project: the first image at most this tall */
+  /* phones: the scanning cross — level with the first project line, so the first image is the first project's */
+  --scan-top:         calc(var(--mark-size) * var(--mark-leading) + var(--gap-below-lab) + var(--list-size) * var(--list-leading) / 2);
 }
 @media (max-width:820px), (hover:none){
   :root{
@@ -624,7 +629,7 @@ body.gate-on #chrome{opacity:0}
 .frame-body{
   height:100%;min-height:0;
   display:grid;
-  grid-template-columns:minmax(260px, var(--frame-image-col)) 1fr;
+  grid-template-columns:auto 1fr;   /* the main image's column is as wide as the image */
   gap:var(--frame-gap);
   clip-path:inset(-1px);
   transition:clip-path var(--move) var(--ease);
@@ -636,9 +641,10 @@ body.gate-on #chrome{opacity:0}
 .stack{position:relative;min-height:0;height:100%;display:flex;align-items:flex-start}
 .stack img.main,.stack video.main{
   display:block;
-  max-width:100%;max-height:100%;
-  width:auto;height:auto;
-  object-fit:contain;
+  /* the main image: the full height of the project page, width from its proportion */
+  height:var(--main-h, 100%);width:auto;
+  max-width:var(--frame-image-max);
+  object-fit:contain;object-position:left top;
 }
 
 .detail-text{max-width:none;align-self:start}
@@ -676,7 +682,9 @@ body.gate-on #chrome{opacity:0}
 #drops{position:fixed;inset:0;z-index:55;pointer-events:none;transition:clip-path var(--move) var(--ease);will-change:clip-path}
 #drops img,#drops video{
   position:absolute;
-  width:var(--drop-width);
+  /* same surface for every shape; never taller than --image-max-h */
+  width:min(var(--image-max-w), calc(var(--image-size) * var(--sw, 1)), calc(var(--image-max-h) * var(--r, 1)));
+  height:auto;
   animation:fade-in var(--mid) var(--ease) both;
   pointer-events:auto;
   touch-action:none;
@@ -761,7 +769,7 @@ body.is-ready #loader{opacity:0;pointer-events:none}
   .frame-body{grid-template-columns:1fr;grid-template-rows:none;height:auto}
   .stack,.detail-text,.meta{grid-column:auto;grid-row:auto}
   .stack{height:auto}
-  .stack img.main,.stack video.main{max-height:var(--phone-image-height)}
+  .stack img.main,.stack video.main{width:auto;height:auto;max-width:100%;max-height:var(--phone-image-height)}
   .detail-text{overflow:visible}
   .meta{position:static;text-align:left;margin-top:1.2em}
   #project-list{text-align:left}
@@ -773,7 +781,7 @@ body.is-ready #loader{opacity:0;pointer-events:none}
 @media (max-width:820px), (hover:none){
   body:is([data-view="projects"],[data-view="info"]) #scan{
     display:block;position:fixed;z-index:70;pointer-events:none;
-    right:var(--unit);top:50%;
+    right:var(--unit);top:var(--scan-top);
     width:calc(var(--cross-size) * .8);height:calc(var(--cross-size) * .8);
     margin-top:calc(var(--cross-size) * -.4);
     padding:0;background:none;border:0;

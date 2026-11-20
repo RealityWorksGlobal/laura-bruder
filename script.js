@@ -173,7 +173,30 @@ function mediaEl(path, cls) {
     el.src = src;
   }
   if (cls) el.className = cls;
+  shapeOf(el);
   return el;
+}
+
+/* The main image of a project: the full height of the project page */
+function sizeMain() {
+  const fb = $('.frame-body');
+  if (fb && fb.clientHeight) fb.style.setProperty('--main-h', fb.clientHeight + 'px');
+}
+addEventListener('resize', sizeMain);
+
+/* Every image gets about the same surface (--image-size): its proportion is
+   handed to the CSS as --r (width / height) and --sw (√r). */
+function shapeOf(el) {
+  const set = (w, h) => {
+    if (!w || !h) return;
+    el.style.setProperty('--r', w / h);
+    el.style.setProperty('--sw', Math.sqrt(w / h));
+  };
+  if (el.tagName === 'VIDEO') {
+    if (el.videoWidth) set(el.videoWidth, el.videoHeight);
+    else el.addEventListener('loadedmetadata', () => set(el.videoWidth, el.videoHeight), { once: true });
+  } else if (el.complete && el.naturalWidth) set(el.naturalWidth, el.naturalHeight);
+  else el.addEventListener('load', () => set(el.naturalWidth, el.naturalHeight), { once: true });
 }
 
 const list = s => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -1112,6 +1135,7 @@ function renderFrame(p, textOnly) {
   const stack = $('#stack');
   stack.innerHTML = '';
   if (p.images[0]) stack.appendChild(mediaEl(p.images[0], 'main'));
+  requestAnimationFrame(sizeMain);
   $('#drops').innerHTML = '';
   $('#drops').dataset.next = '1';
 }
@@ -1136,7 +1160,11 @@ document.addEventListener('click', e => {
 
   if (e.target.closest('#drops img, #drops video')) return;   // handled by drag
   if (!inside) { closeProjectAnimated(); return; }
+  dropNext(e.clientX, e.clientY);
+});
 
+/** The next image, dropped at x, y. */
+function dropNext(x, y) {
   const p = state.project;
   if (!p) return;
 
@@ -1151,17 +1179,17 @@ document.addEventListener('click', e => {
 
   const img = mediaEl(p.images[n]);
   img.dataset.idx = n;
-  img.style.left = e.clientX + 'px';
-  img.style.top = e.clientY + 'px';
+  img.style.left = x + 'px';
+  img.style.top = y + 'px';
   img.style.transform = 'translate(-50%,-38%)';
   img.style.zIndex = ++state.zTop;
   drops.appendChild(img);
   drops.dataset.next = n + 1;
-});
+}
 
 /* Pressing a dropped image brings it forward; moving while pressed drags it. */
 (() => {
-  let el = null, dx = 0, dy = 0;
+  let el = null, dx = 0, dy = 0, sx = 0, sy = 0, moved = false;
   document.addEventListener('pointerdown', e => {
     closedDrop = false;                          // only the click right after a close is eaten
     const t = e.target.closest('#drops img, #drops video');
@@ -1172,7 +1200,7 @@ document.addEventListener('click', e => {
       closedDrop = true;
       return;
     }
-    el = t;
+    el = t; moved = false; sx = e.clientX; sy = e.clientY;
     el.style.zIndex = ++state.zTop;
     dx = e.clientX - parseFloat(el.style.left);
     dy = e.clientY - parseFloat(el.style.top);
@@ -1180,11 +1208,16 @@ document.addEventListener('click', e => {
   });
   document.addEventListener('pointermove', e => {
     if (!el) return;
+    if (Math.hypot(e.clientX - sx, e.clientY - sy) > 4) moved = true;
     el.style.left = (e.clientX - dx) + 'px';
     el.style.top = (e.clientY - dy) + 'px';
   });
   const end = () => { el = null; };
-  document.addEventListener('pointerup', end);
+  // a click on an image (no drag) drops the next one there, like a click in the frame
+  document.addEventListener('pointerup', e => {
+    if (el && !moved && !state.busy) dropNext(e.clientX, e.clientY);
+    end();
+  });
   document.addEventListener('pointercancel', end);
 })();
 
